@@ -1,0 +1,2 @@
+- [Workout generator split layout](workout-generator-splits.md) — split layouts are in workoutGenerator.ts as SPLIT_LAYOUTS map; Core variants use `${splitType}_Core` key pattern
+- [Exercise seeding](exercise-seeding.md) — 120 exercises in scripts/src/seed.ts; idempotent; date-fns was added manually to mobile package after design subagent ran

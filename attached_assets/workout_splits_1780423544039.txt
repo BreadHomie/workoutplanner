@@ -1,0 +1,80 @@
+Workout Splits:
+
+Full Body
+1 compound movement (chest, back, legs)
+3 circuits (2 exercises each), 1 chest, 1 back, 1, legs, 1 core, 1 arm (bicep or tricep), 1 shoulder
+
+Upper/Lower Body
+	Upper body
+		1 compound movement (chest, back)
+		3 circuits (2 exercises each)
+			Circuit 1: 1 chest, 1 back + arms
+			Circuit 2: 1 chest, 1 arm
+			Circuit 3: 1 back, 1 arm
+
+	Lower body
+		1 compound movement (legs)
+		3 circuits (2 exercises each)
+			Circuit 1: 2 legs
+			Circuit 2: 2 legs
+			Circuit 3: 2 legs
+
+Upper Body/Lower Body + Core
+	Upper body
+		1 compound movement (chest, back)
+		3 circuits (2 exercises each)
+			Circuit 1: 1 chest, 1 back + arms
+			Circuit 2: 1 chest, 1 arm
+			Circuit 3: 1 back, 1 arm
+
+	Lower body
+		1 compound movement (legs)
+		3 circuits (2 exercises each)
+			Circuit 1: 1 leg, 1 core
+			Circuit 2: 1 leg, 1 core
+			Circuit 3: 1 leg, 1 core
+
+Push/Pull/Legs
+	Push 
+		1 compound movement (chest or shoulders)
+		3 circuits (2 exercises each)
+			Circuit 1: 1 chest, 1 arm (tricep)
+			Circuit 2: 1 chest, 1 shoulder
+			Circuit 3: 1 shoulder, 1 arm (tricep)
+
+	Pull
+		1 compound movement (back)
+		3 circuits (2 exercises each)
+			Circuit 1: 1 back, 1 arm (biceps)
+			Circuit 2: 1 back, 1 lats
+			Circuit 3: 1 lats, 1 arm (biceps)
+
+	Legs
+		1 compound movement (legs)
+		3 circuits (2 exercises each)
+			Circuit 1: 2 legs
+			Circuit 2: 2 legs
+			Circuit 3: 2 legs
+
+Push/Pull/Legs + Core
+	Push 
+		1 compound movement (chest or shoulders)
+		3 circuits (2 exercises each)
+			Circuit 1: 1 chest, 1 arm (tricep)
+			Circuit 2: 1 chest, 1 shoulder
+			Circuit 3: 1 shoulder, 1 arm (tricep)
+
+	Pull
+		1 compound movement (back)
+		3 circuits (2 exercises each)
+			Circuit 1: 1 back, 1 arm (biceps)
+			Circuit 2: 1 back, 1 lats
+			Circuit 3: 1 lats, 1 arm (biceps)
+
+	Legs
+		1 compound movement (legs)
+		1 compound movement (legs)
+		3 circuits (2 exercises each)
+			Circuit 1: 1 leg, 1 core
+			Circuit 2: 1 leg, 1 core
+			Circuit 3: 1 leg, 1 core

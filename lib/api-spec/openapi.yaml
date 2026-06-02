@@ -3,20 +3,30 @@ info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: Glide Fitness App API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: profile
+    description: User profile
+  - name: exercises
+    description: Exercise library
+  - name: workouts
+    description: Workout generation
+  - name: sessions
+    description: Workout session logs
+  - name: schedule
+    description: Workout schedule
+
 paths:
   /healthz:
     get:
       operationId: healthCheck
       tags: [health]
       summary: Health check
-      description: Returns server health status
       responses:
         "200":
           description: Healthy
@@ -24,6 +34,252 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /profile:
+    get:
+      operationId: getProfile
+      tags: [profile]
+      summary: Get user profile
+      responses:
+        "200":
+          description: User profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserProfile"
+    put:
+      operationId: updateProfile
+      tags: [profile]
+      summary: Update user profile
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateProfileInput"
+      responses:
+        "200":
+          description: Updated profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserProfile"
+
+  /exercises:
+    get:
+      operationId: listExercises
+      tags: [exercises]
+      summary: List exercises with optional filters
+      parameters:
+        - name: difficulty
+          in: query
+          schema:
+            type: string
+            enum: [Beginner, Intermediate, Advanced]
+        - name: equipment
+          in: query
+          schema:
+            type: string
+        - name: muscleGroup
+          in: query
+          schema:
+            type: string
+        - name: isCompound
+          in: query
+          schema:
+            type: boolean
+      responses:
+        "200":
+          description: List of exercises
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Exercise"
+
+  /workouts/generate:
+    post:
+      operationId: generateWorkout
+      tags: [workouts]
+      summary: Generate a workout based on split and preferences
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GenerateWorkoutInput"
+      responses:
+        "200":
+          description: Generated workout plan
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GeneratedWorkout"
+
+  /sessions:
+    get:
+      operationId: listSessions
+      tags: [sessions]
+      summary: List workout sessions (recent history)
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+      responses:
+        "200":
+          description: List of sessions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/WorkoutSession"
+    post:
+      operationId: createSession
+      tags: [sessions]
+      summary: Create a new workout session log
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateSessionInput"
+      responses:
+        "201":
+          description: Created session
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WorkoutSession"
+
+  /sessions/{sessionId}:
+    get:
+      operationId: getSession
+      tags: [sessions]
+      summary: Get a specific session with all logs
+      parameters:
+        - name: sessionId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Session detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WorkoutSessionDetail"
+
+  /sessions/{sessionId}/logs:
+    post:
+      operationId: addSessionLog
+      tags: [sessions]
+      summary: Add exercise log entry to a session
+      parameters:
+        - name: sessionId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AddSessionLogInput"
+      responses:
+        "201":
+          description: Created log entry
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SessionLog"
+
+  /exercises/{exerciseId}/last-log:
+    get:
+      operationId: getExerciseLastLog
+      tags: [exercises]
+      summary: Get the last logged entry for an exercise (for progressive overload)
+      parameters:
+        - name: exerciseId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Last log entry or null
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SessionLog"
+        "404":
+          description: No previous log found
+
+  /schedule:
+    get:
+      operationId: getSchedule
+      tags: [schedule]
+      summary: Get scheduled workout sessions for the current/next week
+      responses:
+        "200":
+          description: Schedule entries
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ScheduleEntry"
+    post:
+      operationId: createScheduleEntry
+      tags: [schedule]
+      summary: Create a scheduled workout entry
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateScheduleEntryInput"
+      responses:
+        "201":
+          description: Created schedule entry
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ScheduleEntry"
+
+  /schedule/{entryId}:
+    delete:
+      operationId: deleteScheduleEntry
+      tags: [schedule]
+      summary: Delete a scheduled workout
+      parameters:
+        - name: entryId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /stats/summary:
+    get:
+      operationId: getStatsSummary
+      tags: [sessions]
+      summary: Get workout stats summary (total sessions, streak, this week count)
+      responses:
+        "200":
+          description: Stats summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatsSummary"
+
 components:
   schemas:
     HealthStatus:
@@ -31,6 +287,309 @@ components:
       properties:
         status:
           type: string
-      required:
-        - status
+      required: [status]
 
+    UserProfile:
+      type: object
+      properties:
+        id:
+          type: integer
+        difficultyLevel:
+          type: string
+          enum: [Beginner, Intermediate, Advanced]
+        equipment:
+          type: array
+          items:
+            type: string
+        targetCadence:
+          type: integer
+          description: Target workouts per week
+        preferredSplit:
+          type: string
+          enum: [Full Body, Upper/Lower, Upper/Lower + Core, Push/Pull/Legs, Push/Pull/Legs + Core]
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required: [id, difficultyLevel, equipment, targetCadence, preferredSplit, createdAt, updatedAt]
+
+    UpdateProfileInput:
+      type: object
+      properties:
+        difficultyLevel:
+          type: string
+          enum: [Beginner, Intermediate, Advanced]
+        equipment:
+          type: array
+          items:
+            type: string
+        targetCadence:
+          type: integer
+        preferredSplit:
+          type: string
+          enum: [Full Body, Upper/Lower, Upper/Lower + Core, Push/Pull/Legs, Push/Pull/Legs + Core]
+
+    Exercise:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        equipment:
+          type: string
+        difficulty:
+          type: string
+          enum: [Beginner, Intermediate, Advanced]
+        isCompound:
+          type: boolean
+        hitChest:
+          type: boolean
+        hitBack:
+          type: boolean
+        hitLegs:
+          type: boolean
+        hitCore:
+          type: boolean
+        hitArm:
+          type: boolean
+        hitShoulder:
+          type: boolean
+        classification:
+          type: string
+      required: [id, name, equipment, difficulty, isCompound, hitChest, hitBack, hitLegs, hitCore, hitArm, hitShoulder, classification]
+
+    GenerateWorkoutInput:
+      type: object
+      properties:
+        splitType:
+          type: string
+          enum: [Full Body, Upper, Lower, Push, Pull, Legs]
+        splitVariant:
+          type: string
+          enum: [Standard, Core]
+          description: Standard or Core variant (e.g. Lower + Core)
+        difficultyLevel:
+          type: string
+          enum: [Beginner, Intermediate, Advanced]
+        equipment:
+          type: array
+          items:
+            type: string
+        scheduledDate:
+          type: string
+          format: date
+          description: ISO date for the workout (used to check weekly non-repetition)
+      required: [splitType, difficultyLevel, equipment]
+
+    GeneratedWorkout:
+      type: object
+      properties:
+        splitType:
+          type: string
+        splitVariant:
+          type: string
+        compound:
+          $ref: "#/components/schemas/ExerciseWithHistory"
+        circuits:
+          type: array
+          items:
+            $ref: "#/components/schemas/Circuit"
+        scheduledDate:
+          type: string
+      required: [splitType, splitVariant, compound, circuits]
+
+    ExerciseWithHistory:
+      type: object
+      properties:
+        exercise:
+          $ref: "#/components/schemas/Exercise"
+        lastLog:
+          $ref: "#/components/schemas/SessionLog"
+        suggestedSets:
+          type: integer
+        suggestedReps:
+          type: integer
+      required: [exercise, suggestedSets, suggestedReps]
+
+    Circuit:
+      type: object
+      properties:
+        circuitNumber:
+          type: integer
+        exercises:
+          type: array
+          items:
+            $ref: "#/components/schemas/ExerciseWithHistory"
+      required: [circuitNumber, exercises]
+
+    WorkoutSession:
+      type: object
+      properties:
+        id:
+          type: integer
+        splitType:
+          type: string
+        splitVariant:
+          type: string
+        scheduledDate:
+          type: string
+        completedAt:
+          type: string
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+        logCount:
+          type: integer
+      required: [id, splitType, splitVariant, createdAt, logCount]
+
+    WorkoutSessionDetail:
+      type: object
+      properties:
+        id:
+          type: integer
+        splitType:
+          type: string
+        splitVariant:
+          type: string
+        scheduledDate:
+          type: string
+        completedAt:
+          type: string
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+        logs:
+          type: array
+          items:
+            $ref: "#/components/schemas/SessionLogWithExercise"
+      required: [id, splitType, splitVariant, createdAt, logs]
+
+    SessionLog:
+      type: object
+      properties:
+        id:
+          type: integer
+        sessionId:
+          type: integer
+        exerciseId:
+          type: integer
+        sets:
+          type: integer
+        reps:
+          type: integer
+        weightUsed:
+          type: number
+          description: Weight in lbs/kg
+        notes:
+          type: string
+        loggedAt:
+          type: string
+          format: date-time
+      required: [id, sessionId, exerciseId, sets, reps, loggedAt]
+
+    SessionLogWithExercise:
+      type: object
+      properties:
+        id:
+          type: integer
+        sessionId:
+          type: integer
+        exerciseId:
+          type: integer
+        exercise:
+          $ref: "#/components/schemas/Exercise"
+        sets:
+          type: integer
+        reps:
+          type: integer
+        weightUsed:
+          type: number
+        notes:
+          type: string
+        loggedAt:
+          type: string
+          format: date-time
+      required: [id, sessionId, exerciseId, exercise, sets, reps, loggedAt]
+
+    AddSessionLogInput:
+      type: object
+      properties:
+        exerciseId:
+          type: integer
+        sets:
+          type: integer
+        reps:
+          type: integer
+        weightUsed:
+          type: number
+        notes:
+          type: string
+      required: [exerciseId, sets, reps]
+
+    CreateSessionInput:
+      type: object
+      properties:
+        splitType:
+          type: string
+        splitVariant:
+          type: string
+        scheduledDate:
+          type: string
+        completedAt:
+          type: string
+          format: date-time
+      required: [splitType, splitVariant]
+
+    ScheduleEntry:
+      type: object
+      properties:
+        id:
+          type: integer
+        scheduledDate:
+          type: string
+          format: date
+        splitType:
+          type: string
+          enum: [Full Body, Upper, Lower, Push, Pull, Legs]
+        splitVariant:
+          type: string
+          enum: [Standard, Core]
+        sessionId:
+          type: integer
+          description: Linked session if completed
+        createdAt:
+          type: string
+          format: date-time
+      required: [id, scheduledDate, splitType, splitVariant, createdAt]
+
+    CreateScheduleEntryInput:
+      type: object
+      properties:
+        scheduledDate:
+          type: string
+          format: date
+        splitType:
+          type: string
+          enum: [Full Body, Upper, Lower, Push, Pull, Legs]
+        splitVariant:
+          type: string
+          enum: [Standard, Core]
+      required: [scheduledDate, splitType, splitVariant]
+
+    StatsSummary:
+      type: object
+      properties:
+        totalSessions:
+          type: integer
+        currentStreak:
+          type: integer
+        thisWeekCount:
+          type: integer
+        totalExercisesLogged:
+          type: integer
+      required: [totalSessions, currentStreak, thisWeekCount, totalExercisesLogged]

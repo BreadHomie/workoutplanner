@@ -1,0 +1,14 @@
+uploads = []
+outputs = []
+
+[[generated]]
+id = "QJFFhbmBswQZbRV9oTx92"
+uri = "file://artifacts/mobile/assets/images/icon.png"
+type = "image"
+title = "Glide app icon"
+
+[[generated]]
+id = "9rjEzRxDECFmhnM0KVhKI"
+uri = "file://artifacts/mobile/assets/images/splash.png"
+type = "image"
+title = "Glide app splash screen"
