@@ -87,14 +87,26 @@ export const ListExercisesResponse = zod.array(ListExercisesResponseItem)
 /**
  * @summary Generate a workout plan (single, weekly, or monthly) and persist sessions
  */
+
+
+
 export const GenerateWorkoutPlanBody = zod.object({
   "period": zod.enum(['daily', 'weekly', 'monthly']),
+  "count": zod.number().min(1).optional().describe('How many periods to generate (e.g. 2 weeks). Defaults to 1.'),
   "startDate": zod.coerce.date().describe('ISO date (YYYY-MM-DD) for when the plan starts'),
   "difficultyLevel": zod.enum(['Beginner', 'Intermediate', 'Advanced']),
   "equipment": zod.array(zod.string()),
   "preferredSplit": zod.string().describe('Program type e.g. \"Full Body\", \"Push\/Pull\/Legs\"'),
   "targetCadence": zod.number().describe('Workouts per week')
 })
+
+export const generateWorkoutPlanResponseWorkoutPlanCompoundLastLogRatingMax = 5;
+
+export const generateWorkoutPlanResponseWorkoutPlanCompound2LastLogRatingMax = 5;
+
+export const generateWorkoutPlanResponseWorkoutPlanCircuitsItemExercisesItemLastLogRatingMax = 5;
+
+
 
 export const GenerateWorkoutPlanResponseItem = zod.object({
   "id": zod.number(),
@@ -131,6 +143,8 @@ export const GenerateWorkoutPlanResponseItem = zod.object({
   "reps": zod.number(),
   "weightUsed": zod.number().optional(),
   "notes": zod.string().optional(),
+  "rating": zod.number().min(1).max(generateWorkoutPlanResponseWorkoutPlanCompoundLastLogRatingMax).optional(),
+  "setCompletions": zod.string().optional().describe('JSON-encoded array of booleans, one per set'),
   "isCompleted": zod.boolean(),
   "loggedAt": zod.coerce.date()
 }).optional(),
@@ -160,6 +174,8 @@ export const GenerateWorkoutPlanResponseItem = zod.object({
   "reps": zod.number(),
   "weightUsed": zod.number().optional(),
   "notes": zod.string().optional(),
+  "rating": zod.number().min(1).max(generateWorkoutPlanResponseWorkoutPlanCompound2LastLogRatingMax).optional(),
+  "setCompletions": zod.string().optional().describe('JSON-encoded array of booleans, one per set'),
   "isCompleted": zod.boolean(),
   "loggedAt": zod.coerce.date()
 }).optional(),
@@ -191,6 +207,8 @@ export const GenerateWorkoutPlanResponseItem = zod.object({
   "reps": zod.number(),
   "weightUsed": zod.number().optional(),
   "notes": zod.string().optional(),
+  "rating": zod.number().min(1).max(generateWorkoutPlanResponseWorkoutPlanCircuitsItemExercisesItemLastLogRatingMax).optional(),
+  "setCompletions": zod.string().optional().describe('JSON-encoded array of booleans, one per set'),
   "isCompleted": zod.boolean(),
   "loggedAt": zod.coerce.date()
 }).optional(),
@@ -270,6 +288,14 @@ export const GetSessionParams = zod.object({
   "sessionId": zod.coerce.number()
 })
 
+export const getSessionResponseWorkoutPlanCompoundLastLogRatingMax = 5;
+
+export const getSessionResponseWorkoutPlanCompound2LastLogRatingMax = 5;
+
+export const getSessionResponseWorkoutPlanCircuitsItemExercisesItemLastLogRatingMax = 5;
+
+
+
 export const GetSessionResponse = zod.object({
   "id": zod.number(),
   "splitType": zod.string(),
@@ -305,6 +331,8 @@ export const GetSessionResponse = zod.object({
   "reps": zod.number(),
   "weightUsed": zod.number().optional(),
   "notes": zod.string().optional(),
+  "rating": zod.number().min(1).max(getSessionResponseWorkoutPlanCompoundLastLogRatingMax).optional(),
+  "setCompletions": zod.string().optional().describe('JSON-encoded array of booleans, one per set'),
   "isCompleted": zod.boolean(),
   "loggedAt": zod.coerce.date()
 }).optional(),
@@ -334,6 +362,8 @@ export const GetSessionResponse = zod.object({
   "reps": zod.number(),
   "weightUsed": zod.number().optional(),
   "notes": zod.string().optional(),
+  "rating": zod.number().min(1).max(getSessionResponseWorkoutPlanCompound2LastLogRatingMax).optional(),
+  "setCompletions": zod.string().optional().describe('JSON-encoded array of booleans, one per set'),
   "isCompleted": zod.boolean(),
   "loggedAt": zod.coerce.date()
 }).optional(),
@@ -365,6 +395,8 @@ export const GetSessionResponse = zod.object({
   "reps": zod.number(),
   "weightUsed": zod.number().optional(),
   "notes": zod.string().optional(),
+  "rating": zod.number().min(1).max(getSessionResponseWorkoutPlanCircuitsItemExercisesItemLastLogRatingMax).optional(),
+  "setCompletions": zod.string().optional().describe('JSON-encoded array of booleans, one per set'),
   "isCompleted": zod.boolean(),
   "loggedAt": zod.coerce.date()
 }).optional(),
@@ -452,12 +484,18 @@ export const AddSessionLogParams = zod.object({
   "sessionId": zod.coerce.number()
 })
 
+export const addSessionLogBodyRatingMax = 5;
+
+
+
 export const AddSessionLogBody = zod.object({
   "exerciseId": zod.number(),
   "sets": zod.number(),
   "reps": zod.number(),
   "weightUsed": zod.number().optional(),
   "notes": zod.string().optional(),
+  "rating": zod.number().min(1).max(addSessionLogBodyRatingMax).optional(),
+  "setCompletions": zod.string().optional(),
   "isCompleted": zod.boolean().optional()
 })
 
@@ -470,13 +508,23 @@ export const UpdateSessionLogParams = zod.object({
   "logId": zod.coerce.number()
 })
 
+export const updateSessionLogBodyRatingMax = 5;
+
+
+
 export const UpdateSessionLogBody = zod.object({
   "sets": zod.number().optional(),
   "reps": zod.number().optional(),
   "weightUsed": zod.number().optional(),
   "notes": zod.string().optional(),
+  "rating": zod.number().min(1).max(updateSessionLogBodyRatingMax).optional(),
+  "setCompletions": zod.string().optional(),
   "isCompleted": zod.boolean().optional()
 })
+
+export const updateSessionLogResponseRatingMax = 5;
+
+
 
 export const UpdateSessionLogResponse = zod.object({
   "id": zod.number(),
@@ -486,8 +534,57 @@ export const UpdateSessionLogResponse = zod.object({
   "reps": zod.number(),
   "weightUsed": zod.number().optional(),
   "notes": zod.string().optional(),
+  "rating": zod.number().min(1).max(updateSessionLogResponseRatingMax).optional(),
+  "setCompletions": zod.string().optional().describe('JSON-encoded array of booleans, one per set'),
   "isCompleted": zod.boolean(),
   "loggedAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Swap an exercise in the session plan (random, easier, or harder)
+ */
+export const ReplaceExerciseParams = zod.object({
+  "sessionId": zod.coerce.number()
+})
+
+export const ReplaceExerciseBody = zod.object({
+  "exerciseId": zod.number().describe('ID of the exercise to replace'),
+  "direction": zod.enum(['random', 'easier', 'harder'])
+})
+
+export const replaceExerciseResponseLastLogRatingMax = 5;
+
+
+
+export const ReplaceExerciseResponse = zod.object({
+  "exercise": zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "equipment": zod.string(),
+  "difficulty": zod.enum(['Beginner', 'Intermediate', 'Advanced']),
+  "isCompound": zod.boolean(),
+  "hitChest": zod.boolean(),
+  "hitBack": zod.boolean(),
+  "hitLegs": zod.boolean(),
+  "hitCore": zod.boolean(),
+  "hitArm": zod.boolean(),
+  "hitShoulder": zod.boolean(),
+  "classification": zod.string()
+}),
+  "lastLog": zod.object({
+  "id": zod.number(),
+  "sessionId": zod.number(),
+  "exerciseId": zod.number(),
+  "sets": zod.number(),
+  "reps": zod.number(),
+  "weightUsed": zod.number().optional(),
+  "notes": zod.string().optional(),
+  "rating": zod.number().min(1).max(replaceExerciseResponseLastLogRatingMax).optional(),
+  "setCompletions": zod.string().optional().describe('JSON-encoded array of booleans, one per set'),
+  "isCompleted": zod.boolean(),
+  "loggedAt": zod.coerce.date()
+}).optional()
 })
 
 
@@ -516,6 +613,10 @@ export const GetExerciseLastLogParams = zod.object({
   "exerciseId": zod.coerce.number()
 })
 
+export const getExerciseLastLogResponseRatingMax = 5;
+
+
+
 export const GetExerciseLastLogResponse = zod.object({
   "id": zod.number(),
   "sessionId": zod.number(),
@@ -524,6 +625,8 @@ export const GetExerciseLastLogResponse = zod.object({
   "reps": zod.number(),
   "weightUsed": zod.number().optional(),
   "notes": zod.string().optional(),
+  "rating": zod.number().min(1).max(getExerciseLastLogResponseRatingMax).optional(),
+  "setCompletions": zod.string().optional().describe('JSON-encoded array of booleans, one per set'),
   "isCompleted": zod.boolean(),
   "loggedAt": zod.coerce.date()
 })

@@ -91,6 +91,11 @@ export const GeneratePlanInputDifficultyLevel = {
 
 export interface GeneratePlanInput {
   period: GeneratePlanInputPeriod;
+  /**
+     * How many periods to generate (e.g. 2 weeks). Defaults to 1.
+     * @minimum 1
+     */
+  count?: number;
   /** ISO date (YYYY-MM-DD) for when the plan starts */
   startDate: string;
   difficultyLevel: GeneratePlanInputDifficultyLevel;
@@ -109,6 +114,13 @@ export interface SessionLog {
   reps: number;
   weightUsed?: number;
   notes?: string;
+  /**
+     * @minimum 1
+     * @maximum 5
+     */
+  rating?: number;
+  /** JSON-encoded array of booleans, one per set */
+  setCompletions?: string;
   isCompleted: boolean;
   loggedAt: string;
 }
@@ -178,6 +190,12 @@ export interface AddSessionLogInput {
   reps: number;
   weightUsed?: number;
   notes?: string;
+  /**
+     * @minimum 1
+     * @maximum 5
+     */
+  rating?: number;
+  setCompletions?: string;
   isCompleted?: boolean;
 }
 
@@ -186,7 +204,33 @@ export interface UpdateSessionLogInput {
   reps?: number;
   weightUsed?: number;
   notes?: string;
+  /**
+     * @minimum 1
+     * @maximum 5
+     */
+  rating?: number;
+  setCompletions?: string;
   isCompleted?: boolean;
+}
+
+export type ReplaceExerciseInputDirection = typeof ReplaceExerciseInputDirection[keyof typeof ReplaceExerciseInputDirection];
+
+
+export const ReplaceExerciseInputDirection = {
+  random: 'random',
+  easier: 'easier',
+  harder: 'harder',
+} as const;
+
+export interface ReplaceExerciseInput {
+  /** ID of the exercise to replace */
+  exerciseId: number;
+  direction: ReplaceExerciseInputDirection;
+}
+
+export interface ReplaceExerciseResult {
+  exercise: Exercise;
+  lastLog?: SessionLog;
 }
 
 export interface UpdateSessionInput {

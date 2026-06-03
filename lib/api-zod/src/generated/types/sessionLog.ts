@@ -14,6 +14,13 @@ export interface SessionLog {
   reps: number;
   weightUsed?: number;
   notes?: string;
+  /**
+     * @minimum 1
+     * @maximum 5
+     */
+  rating?: number;
+  /** JSON-encoded array of booleans, one per set */
+  setCompletions?: string;
   isCompleted: boolean;
   loggedAt: Date;
 }

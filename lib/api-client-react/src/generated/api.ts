@@ -30,6 +30,8 @@ import type {
   ListSessionsParams,
   PersonalRecord,
   PlannedSession,
+  ReplaceExerciseInput,
+  ReplaceExerciseResult,
   SaveScheduleBulkInput,
   ScheduleEntry,
   SessionLog,
@@ -952,6 +954,78 @@ export const useUpdateSessionLog = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getUpdateSessionLogMutationOptions(options));
+    }
+
+export const getReplaceExerciseUrl = (sessionId: number,) => {
+
+
+
+
+  return `/api/sessions/${sessionId}/replace-exercise`
+}
+
+/**
+ * @summary Swap an exercise in the session plan (random, easier, or harder)
+ */
+export const replaceExercise = async (sessionId: number,
+    replaceExerciseInput: ReplaceExerciseInput, options?: RequestInit): Promise<ReplaceExerciseResult> => {
+
+  return customFetch<ReplaceExerciseResult>(getReplaceExerciseUrl(sessionId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      replaceExerciseInput,)
+  }
+);}
+
+
+
+
+export const getReplaceExerciseMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof replaceExercise>>, TError,{sessionId: number;data: BodyType<ReplaceExerciseInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof replaceExercise>>, TError,{sessionId: number;data: BodyType<ReplaceExerciseInput>}, TContext> => {
+
+const mutationKey = ['replaceExercise'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof replaceExercise>>, {sessionId: number;data: BodyType<ReplaceExerciseInput>}> = (props) => {
+          const {sessionId,data} = props ?? {};
+
+          return  replaceExercise(sessionId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ReplaceExerciseMutationResult = NonNullable<Awaited<ReturnType<typeof replaceExercise>>>
+    export type ReplaceExerciseMutationBody = BodyType<ReplaceExerciseInput>
+    export type ReplaceExerciseMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Swap an exercise in the session plan (random, easier, or harder)
+ */
+export const useReplaceExercise = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof replaceExercise>>, TError,{sessionId: number;data: BodyType<ReplaceExerciseInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof replaceExercise>>,
+        TError,
+        {sessionId: number;data: BodyType<ReplaceExerciseInput>},
+        TContext
+      > => {
+      return useMutation(getReplaceExerciseMutationOptions(options));
     }
 
 export const getCompleteExerciseUrl = (sessionId: number,

@@ -1,7 +1,8 @@
 import { Router } from "express";
-import { and, count, desc, eq, sql } from "drizzle-orm";
+import { and, count, desc, eq, inArray, or, sql } from "drizzle-orm";
 import { db } from "@workspace/db";
 import { workoutSessionsTable, sessionLogsTable, exercisesTable, userProfilesTable } from "@workspace/db";
+import { getLastLog } from "../lib/workoutGenerator";
 
 const router = Router();
 
@@ -87,6 +88,8 @@ router.get("/sessions/:sessionId", async (req, res): Promise<void> => {
       reps: sessionLogsTable.reps,
       weightUsed: sessionLogsTable.weightUsed,
       notes: sessionLogsTable.notes,
+      rating: sessionLogsTable.rating,
+      setCompletions: sessionLogsTable.setCompletions,
       isCompleted: sessionLogsTable.isCompleted,
       loggedAt: sessionLogsTable.loggedAt,
       exercise: exercisesTable,
@@ -140,28 +143,145 @@ router.post("/sessions/:sessionId/complete", async (req, res): Promise<void> => 
   res.json(reward ?? { xpEarned: XP_PER_WORKOUT, coinsEarned: COINS_PER_WORKOUT, totalXp: 0, totalCoins: 0, level: 1, leveledUp: false });
 });
 
+router.post("/sessions/:sessionId/replace-exercise", async (req, res): Promise<void> => {
+  const raw = Array.isArray(req.params.sessionId) ? req.params.sessionId[0] : req.params.sessionId;
+  const sessionId = parseInt(raw, 10);
+  if (isNaN(sessionId)) { res.status(400).json({ error: "Invalid session ID" }); return; }
+
+  const { exerciseId, direction } = req.body as { exerciseId: number; direction: "random" | "easier" | "harder" };
+  if (!exerciseId || !direction) { res.status(400).json({ error: "exerciseId and direction are required" }); return; }
+
+  const [session] = await db.select().from(workoutSessionsTable).where(eq(workoutSessionsTable.id, sessionId));
+  if (!session || !session.workoutPlanJson) { res.status(404).json({ error: "Session not found" }); return; }
+
+  const [currentEx] = await db.select().from(exercisesTable).where(eq(exercisesTable.id, exerciseId));
+  if (!currentEx) { res.status(404).json({ error: "Exercise not found" }); return; }
+
+  const [profile] = await db.select().from(userProfilesTable).limit(1);
+  const equipment = profile?.equipment ?? [];
+
+  const diffLevels = ["Beginner", "Intermediate", "Advanced"];
+  const idx = diffLevels.indexOf(currentEx.difficulty);
+
+  let targetDiffs: string[];
+  if (direction === "easier") {
+    targetDiffs = idx > 0 ? diffLevels.slice(0, idx) : ["Beginner"];
+  } else if (direction === "harder") {
+    targetDiffs = idx < 2 ? diffLevels.slice(idx + 1) : ["Advanced"];
+  } else {
+    targetDiffs = diffLevels.slice(0, idx + 1);
+  }
+
+  const muscleConditions: ReturnType<typeof eq>[] = [];
+  if (currentEx.hitChest) muscleConditions.push(eq(exercisesTable.hitChest, true));
+  if (currentEx.hitBack) muscleConditions.push(eq(exercisesTable.hitBack, true));
+  if (currentEx.hitLegs) muscleConditions.push(eq(exercisesTable.hitLegs, true));
+  if (currentEx.hitCore) muscleConditions.push(eq(exercisesTable.hitCore, true));
+  if (currentEx.hitArm) muscleConditions.push(eq(exercisesTable.hitArm, true));
+  if (currentEx.hitShoulder) muscleConditions.push(eq(exercisesTable.hitShoulder, true));
+  if (muscleConditions.length === 0) { res.status(400).json({ error: "Cannot determine muscle group" }); return; }
+
+  // Get all exercise IDs already in the plan (to exclude)
+  const plan = JSON.parse(session.workoutPlanJson);
+  const planIds = new Set<number>();
+  if (plan.compound?.exercise?.id) planIds.add(plan.compound.exercise.id);
+  if (plan.compound2?.exercise?.id) planIds.add(plan.compound2.exercise.id);
+  plan.circuits?.forEach((c: any) => c.exercises?.forEach((e: any) => { if (e.exercise?.id) planIds.add(e.exercise.id); }));
+  planIds.delete(exerciseId);
+
+  const buildConditions = (diffs: string[]) => {
+    const conds: ReturnType<typeof eq>[] = [
+      inArray(exercisesTable.difficulty, diffs) as any,
+      (muscleConditions.length === 1 ? muscleConditions[0] : or(...muscleConditions)) as any,
+    ];
+    if (currentEx.isCompound) conds.push(eq(exercisesTable.isCompound, true) as any);
+    if (equipment.length > 0) conds.push(inArray(exercisesTable.equipment, equipment) as any);
+    return conds;
+  };
+
+  let candidates = await db.select().from(exercisesTable).where(and(...buildConditions(targetDiffs)));
+  candidates = candidates.filter(e => !planIds.has(e.id));
+
+  if (candidates.length === 0) {
+    // Relax difficulty constraint
+    const relaxed = [
+      (muscleConditions.length === 1 ? muscleConditions[0] : or(...muscleConditions)) as any,
+      ...(equipment.length > 0 ? [inArray(exercisesTable.equipment, equipment) as any] : []),
+    ];
+    candidates = (await db.select().from(exercisesTable).where(and(...relaxed))).filter(e => !planIds.has(e.id) && e.id !== exerciseId);
+  }
+
+  if (candidates.length === 0) { res.status(400).json({ error: "No replacement exercise found" }); return; }
+
+  const newEx = candidates[Math.floor(Math.random() * candidates.length)];
+  const lastLog = await getLastLog(newEx.id);
+
+  // Find suggestedSets/Reps for the slot being replaced
+  let suggestedSets = 3;
+  let suggestedReps = 8;
+  if (plan.compound?.exercise?.id === exerciseId) {
+    suggestedSets = plan.compound.suggestedSets ?? 4;
+    suggestedReps = plan.compound.suggestedReps ?? 8;
+    plan.compound = { ...plan.compound, exercise: newEx, lastLog };
+  } else if (plan.compound2?.exercise?.id === exerciseId) {
+    suggestedSets = plan.compound2.suggestedSets ?? 4;
+    suggestedReps = plan.compound2.suggestedReps ?? 8;
+    plan.compound2 = { ...plan.compound2, exercise: newEx, lastLog };
+  } else {
+    plan.circuits?.forEach((c: any) => {
+      c.exercises?.forEach((e: any) => {
+        if (e.exercise?.id === exerciseId) {
+          suggestedSets = e.suggestedSets ?? 3;
+          suggestedReps = e.suggestedReps ?? 8;
+          e.exercise = newEx;
+          e.lastLog = lastLog;
+        }
+      });
+    });
+  }
+
+  // Delete old log stub, create new one
+  await db.delete(sessionLogsTable)
+    .where(and(eq(sessionLogsTable.sessionId, sessionId), eq(sessionLogsTable.exerciseId, exerciseId)));
+
+  await db.insert(sessionLogsTable).values({
+    sessionId,
+    exerciseId: newEx.id,
+    sets: suggestedSets,
+    reps: suggestedReps,
+    weightUsed: lastLog?.weightUsed ?? undefined,
+    isCompleted: false,
+  });
+
+  await db.update(workoutSessionsTable)
+    .set({ workoutPlanJson: JSON.stringify(plan) })
+    .where(eq(workoutSessionsTable.id, sessionId));
+
+  res.json({ exercise: newEx, lastLog });
+});
+
 router.post("/sessions/:sessionId/logs", async (req, res): Promise<void> => {
   const raw = Array.isArray(req.params.sessionId) ? req.params.sessionId[0] : req.params.sessionId;
   const sessionId = parseInt(raw, 10);
   if (isNaN(sessionId)) { res.status(400).json({ error: "Invalid session ID" }); return; }
 
-  const { exerciseId, sets, reps, weightUsed, notes, isCompleted } = req.body as {
-    exerciseId?: number; sets?: number; reps?: number; weightUsed?: number; notes?: string; isCompleted?: boolean;
+  const { exerciseId, sets, reps, weightUsed, notes, rating, setCompletions, isCompleted } = req.body as {
+    exerciseId?: number; sets?: number; reps?: number; weightUsed?: number; notes?: string;
+    rating?: number; setCompletions?: string; isCompleted?: boolean;
   };
   if (!exerciseId || !sets || !reps) { res.status(400).json({ error: "exerciseId, sets, and reps are required" }); return; }
 
-  // Upsert: find existing log for this exercise in this session
   const [existing] = await db.select().from(sessionLogsTable)
     .where(and(eq(sessionLogsTable.sessionId, sessionId), eq(sessionLogsTable.exerciseId, exerciseId)));
 
   if (existing) {
     const [updated] = await db.update(sessionLogsTable)
-      .set({ sets, reps, weightUsed, notes, isCompleted: isCompleted ?? existing.isCompleted })
+      .set({ sets, reps, weightUsed, notes, rating, setCompletions, isCompleted: isCompleted ?? existing.isCompleted })
       .where(eq(sessionLogsTable.id, existing.id))
       .returning();
     res.status(201).json(updated);
   } else {
-    const [log] = await db.insert(sessionLogsTable).values({ sessionId, exerciseId, sets, reps, weightUsed, notes, isCompleted: isCompleted ?? false }).returning();
+    const [log] = await db.insert(sessionLogsTable).values({ sessionId, exerciseId, sets, reps, weightUsed, notes, rating, setCompletions, isCompleted: isCompleted ?? false }).returning();
     res.status(201).json(log);
   }
 });
@@ -173,8 +293,9 @@ router.patch("/sessions/:sessionId/logs/:logId", async (req, res): Promise<void>
   const logId = parseInt(rawLog, 10);
   if (isNaN(sessionId) || isNaN(logId)) { res.status(400).json({ error: "Invalid IDs" }); return; }
 
-  const { sets, reps, weightUsed, notes, isCompleted } = req.body as {
-    sets?: number; reps?: number; weightUsed?: number; notes?: string; isCompleted?: boolean;
+  const { sets, reps, weightUsed, notes, rating, setCompletions, isCompleted } = req.body as {
+    sets?: number; reps?: number; weightUsed?: number; notes?: string;
+    rating?: number; setCompletions?: string; isCompleted?: boolean;
   };
 
   const updates: Record<string, unknown> = {};
@@ -182,6 +303,8 @@ router.patch("/sessions/:sessionId/logs/:logId", async (req, res): Promise<void>
   if (reps !== undefined) updates.reps = reps;
   if (weightUsed !== undefined) updates.weightUsed = weightUsed;
   if (notes !== undefined) updates.notes = notes;
+  if (rating !== undefined) updates.rating = rating;
+  if (setCompletions !== undefined) updates.setCompletions = setCompletions;
   if (isCompleted !== undefined) updates.isCompleted = isCompleted;
 
   const [log] = await db.update(sessionLogsTable).set(updates as any)
@@ -206,7 +329,6 @@ router.post("/sessions/:sessionId/logs/:logId/complete", async (req, res): Promi
 });
 
 router.get("/stats/personal-records", async (_req, res): Promise<void> => {
-  // For each exercise, get the log with the highest weight
   const records = await db
     .select({
       exerciseId: exercisesTable.id,
@@ -255,23 +377,46 @@ router.get("/stats/summary", async (_req, res): Promise<void> => {
   const [{ exerciseTotal }] = await db.select({ exerciseTotal: count() }).from(sessionLogsTable);
   const [{ completedTotal }] = await db.select({ completedTotal: count() }).from(workoutSessionsTable).where(eq(workoutSessionsTable.isCompleted, true));
 
+  // Simple streak: consecutive days with a completed session going back from today
   const today = new Date();
-  const dayOfWeek = today.getDay();
-  const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+  let streak = 0;
+  for (let i = 0; i < 365; i++) {
+    const d = new Date(today);
+    d.setDate(today.getDate() - i);
+    const dateStr = d.toISOString().split("T")[0];
+    const [{ cnt }] = await db
+      .select({ cnt: count() })
+      .from(workoutSessionsTable)
+      .where(and(eq(workoutSessionsTable.scheduledDate, dateStr), eq(workoutSessionsTable.isCompleted, true)));
+    if (cnt > 0) streak++;
+    else if (i > 0) break;
+  }
+
   const weekStart = new Date(today);
-  weekStart.setDate(today.getDate() + mondayOffset);
-  const weekStartStr = weekStart.toISOString().split("T")[0];
+  const dayOfWeek = today.getDay();
+  weekStart.setDate(today.getDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1));
   const weekEnd = new Date(weekStart);
   weekEnd.setDate(weekStart.getDate() + 7);
+  const weekStartStr = weekStart.toISOString().split("T")[0];
   const weekEndStr = weekEnd.toISOString().split("T")[0];
 
-  const [{ weekCount }] = await db.select({ weekCount: count() }).from(workoutSessionsTable)
-    .where(and(
-      sql`${workoutSessionsTable.scheduled_date} >= ${weekStartStr}`,
-      sql`${workoutSessionsTable.scheduled_date} < ${weekEndStr}`
-    ));
+  const weekSessions = await db
+    .select()
+    .from(workoutSessionsTable)
+    .where(
+      and(
+        sql`${workoutSessionsTable.scheduledDate} >= ${weekStartStr}`,
+        sql`${workoutSessionsTable.scheduledDate} < ${weekEndStr}`
+      )
+    );
 
-  res.json({ totalSessions: total, currentStreak: 0, thisWeekCount: weekCount, totalExercisesLogged: exerciseTotal, completedSessions: completedTotal });
+  res.json({
+    totalSessions: total,
+    currentStreak: streak,
+    thisWeekCount: weekSessions.length,
+    totalExercisesLogged: exerciseTotal,
+    completedSessions: completedTotal,
+  });
 });
 
 export default router;

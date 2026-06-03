@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, or, sql } from "drizzle-orm";
+import { and, avg, desc, eq, inArray, or, sql } from "drizzle-orm";
 import { db } from "@workspace/db";
 import { exercisesTable, sessionLogsTable, workoutSessionsTable } from "@workspace/db";
 import type { Exercise } from "@workspace/db";
@@ -85,7 +85,6 @@ const SPLIT_LAYOUTS: Record<string, SplitLayout> = {
   },
 };
 
-// Split cycles for each preferred program
 export const SPLIT_CYCLES: Record<string, Array<[string, string]>> = {
   "Full Body": [["Full Body", "Standard"]],
   "Upper/Lower": [["Upper", "Standard"], ["Lower", "Standard"]],
@@ -119,9 +118,37 @@ function equipmentFilter(equipment: string[]) {
   return inArray(exercisesTable.equipment, equipment);
 }
 
-function pickRandom(pool: Exercise[], usedIds: Set<number>): Exercise | undefined {
-  const available = pool.filter((e) => !usedIds.has(e.id));
+async function getExerciseRatings(): Promise<Map<number, number>> {
+  const ratings = await db
+    .select({
+      exerciseId: sessionLogsTable.exerciseId,
+      avgRating: avg(sessionLogsTable.rating),
+    })
+    .from(sessionLogsTable)
+    .where(sql`${sessionLogsTable.rating} IS NOT NULL`)
+    .groupBy(sessionLogsTable.exerciseId);
+
+  return new Map(ratings.map(r => [r.exerciseId, parseFloat(r.avgRating ?? "3")]));
+}
+
+function pickRandom(pool: Exercise[], usedIds: Set<number>, ratings?: Map<number, number>): Exercise | undefined {
+  let available = pool.filter((e) => !usedIds.has(e.id));
   if (available.length === 0) return undefined;
+
+  if (ratings && ratings.size > 0) {
+    // Exclude exercises rated 1 (strongly disliked) unless no other options
+    const liked = available.filter(e => (ratings.get(e.id) ?? 3) > 1);
+    if (liked.length > 0) available = liked;
+
+    // Weight higher-rated exercises (4-5) to appear twice as often
+    const weighted: Exercise[] = [];
+    for (const ex of available) {
+      weighted.push(ex);
+      if ((ratings.get(ex.id) ?? 3) >= 4) weighted.push(ex);
+    }
+    available = weighted;
+  }
+
   const pick = available[Math.floor(Math.random() * available.length)];
   usedIds.add(pick.id);
   return pick;
@@ -183,6 +210,7 @@ export async function generateWorkout(params: {
   const usedIds = sessionUsedIds ?? new Set<number>(weeklyUsed);
   weeklyUsed.forEach(id => usedIds.add(id));
 
+  const ratings = await getExerciseRatings();
   const diffCond = difficultyFilter(difficultyLevel);
   const equipCond = equipmentFilter(equipment);
 
@@ -194,12 +222,12 @@ export async function generateWorkout(params: {
   }
 
   const compoundPool = await getPool(layout.compound);
-  const compoundEx = pickRandom(compoundPool, usedIds);
+  const compoundEx = pickRandom(compoundPool, usedIds, ratings);
 
   let compound2Ex: Exercise | undefined;
   if (layout.compound2) {
     const pool2 = await getPool(layout.compound2);
-    compound2Ex = pickRandom(pool2, usedIds);
+    compound2Ex = pickRandom(pool2, usedIds, ratings);
   }
 
   const circuits: { circuitNumber: number; exercises: { exercise: Exercise; lastLog: Awaited<ReturnType<typeof getLastLog>>; suggestedSets: number; suggestedReps: number }[] }[] = [];
@@ -209,7 +237,7 @@ export async function generateWorkout(params: {
     const circuitExercises = [];
     for (const slot of circuit.slots) {
       const pool = await getPool(slot);
-      const ex = pickRandom(pool, usedIds);
+      const ex = pickRandom(pool, usedIds, ratings);
       if (ex) {
         const lastLog = await getLastLog(ex.id);
         circuitExercises.push({ exercise: ex, lastLog, suggestedSets: 3, suggestedReps: 8 });
@@ -242,18 +270,23 @@ export async function generateWorkout(params: {
   return result;
 }
 
-// Generate dates spread across a period
-export function getPlanDates(period: "daily" | "weekly" | "monthly", startDate: string, cadence: number): string[] {
+export function getPlanDates(period: "daily" | "weekly" | "monthly", startDate: string, cadence: number, count: number = 1): string[] {
   const start = new Date(startDate);
-  if (period === "daily") return [startDate];
+  if (period === "daily") {
+    return Array.from({ length: count }, (_, i) => {
+      const d = new Date(start);
+      d.setDate(start.getDate() + i);
+      return d.toISOString().split("T")[0];
+    });
+  }
 
-  const totalDays = period === "weekly" ? 7 : 30;
-  const count = period === "weekly" ? cadence : cadence * 4;
+  const totalDays = period === "weekly" ? 7 * count : 30 * count;
+  const workoutCount = period === "weekly" ? cadence * count : cadence * 4 * count;
   const dates: string[] = [];
 
-  for (let i = 0; i < count; i++) {
+  for (let i = 0; i < workoutCount; i++) {
     const d = new Date(start);
-    const offset = Math.floor((i * totalDays) / count);
+    const offset = Math.floor((i * totalDays) / workoutCount);
     d.setDate(start.getDate() + offset);
     dates.push(d.toISOString().split("T")[0]);
   }

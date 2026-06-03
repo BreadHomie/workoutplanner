@@ -12,6 +12,8 @@ export const sessionLogsTable = pgTable("session_logs", {
   reps: integer("reps").notNull(),
   weightUsed: real("weight_used"),
   notes: text("notes"),
+  rating: integer("rating"),
+  setCompletions: text("set_completions"),
   isCompleted: boolean("is_completed").notNull().default(false),
   loggedAt: timestamp("logged_at", { withTimezone: true }).notNull().defaultNow(),
 });

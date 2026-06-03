@@ -10,6 +10,11 @@ import type { GeneratePlanInputPeriod } from './generatePlanInputPeriod';
 
 export interface GeneratePlanInput {
   period: GeneratePlanInputPeriod;
+  /**
+     * How many periods to generate (e.g. 2 weeks). Defaults to 1.
+     * @minimum 1
+     */
+  count?: number;
   /** ISO date (YYYY-MM-DD) for when the plan starts */
   startDate: Date;
   difficultyLevel: GeneratePlanInputDifficultyLevel;
