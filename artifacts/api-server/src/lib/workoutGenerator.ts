@@ -137,8 +137,8 @@ async function getWeeklyUsedExerciseIds(weekStart: string): Promise<number[]> {
     .innerJoin(workoutSessionsTable, eq(sessionLogsTable.sessionId, workoutSessionsTable.id))
     .where(
       and(
-        sql`${workoutSessionsTable.scheduled_date} >= ${weekStart}`,
-        sql`${workoutSessionsTable.scheduled_date} < ${weekEndStr}`
+        sql`${workoutSessionsTable.scheduledDate} >= ${weekStart}`,
+        sql`${workoutSessionsTable.scheduledDate} < ${weekEndStr}`
       )
     );
   return [...new Set(logs.map((l) => l.exerciseId))];
