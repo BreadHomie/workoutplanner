@@ -63,7 +63,7 @@ export default function ProfileScreen() {
           onPress: () => {
             resetWorkoutsMut.mutate(undefined, {
               onSuccess: () => {
-                queryClient.invalidateQueries();
+                queryClient.clear();
                 Alert.alert("Done", "All workouts have been reset.");
               },
             });
@@ -85,7 +85,7 @@ export default function ProfileScreen() {
           onPress: () => {
             resetAllMut.mutate(undefined, {
               onSuccess: () => {
-                queryClient.invalidateQueries();
+                queryClient.clear();
                 Alert.alert("Done", "Everything has been reset.");
               },
             });

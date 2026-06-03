@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { and, count, desc, eq, inArray, or, sql } from "drizzle-orm";
 import { db } from "@workspace/db";
-import { workoutSessionsTable, sessionLogsTable, exercisesTable, userProfilesTable } from "@workspace/db";
+import { workoutSessionsTable, sessionLogsTable, exercisesTable, userProfilesTable, scheduleTable } from "@workspace/db";
 import { getLastLog } from "../lib/workoutGenerator";
 
 const router = Router();
@@ -339,10 +339,11 @@ router.delete("/sessions/reset-workouts", async (_req, res): Promise<void> => {
 router.delete("/sessions/reset-all", async (_req, res): Promise<void> => {
   const sessions = await db.select({ id: workoutSessionsTable.id }).from(workoutSessionsTable);
   await db.delete(workoutSessionsTable);
+  await db.delete(scheduleTable);
   await db.update(userProfilesTable).set({
     totalXp: 0, totalCoins: 0, level: 1,
     difficultyLevel: "Intermediate",
-    equipment: [],
+    equipment: ["Bodyweight", "Dumbbells", "Barbell", "Cables"],
     targetCadence: 3,
     preferredSplit: "Full Body",
   });

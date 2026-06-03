@@ -138,44 +138,47 @@ export default function ScheduleScreen() {
           ))}
         </View>
 
-        <View style={styles.daysGrid}>
-          {calendarDays.map((date, i) => {
-            if (!date) return <View key={i} style={styles.dayCellEmpty} />;
+        {/* Render one row per week for proper alignment */}
+        {Array.from({ length: calendarDays.length / 7 }, (_, wi) => (
+          <View key={wi} style={styles.weekRow}>
+            {calendarDays.slice(wi * 7, wi * 7 + 7).map((date, di) => {
+              if (!date) return <View key={di} style={styles.dayCellEmpty} />;
 
-            const dateStr = format(date, "yyyy-MM-dd");
-            const isSelected = selectedDates.has(dateStr);
-            const sess = getSessionForDate(dateStr);
-            const hasSession = !!sess;
-            const isCompleted = sess?.isCompleted ?? false;
-            const isToday = dateStr === todayStr;
-            const isExpanded = expandedDay === dateStr;
+              const dateStr = format(date, "yyyy-MM-dd");
+              const isSelected = selectedDates.has(dateStr);
+              const sess = getSessionForDate(dateStr);
+              const hasSession = !!sess;
+              const isCompleted = sess?.isCompleted ?? false;
+              const isToday = dateStr === todayStr;
+              const isExpanded = expandedDay === dateStr;
 
-            let bgColor = colors.card;
-            if (isCompleted) bgColor = colors.primary;
-            else if (hasSession) bgColor = colors.primary + "70";
-            else if (isSelected) bgColor = colors.secondary;
+              let bgColor = colors.card;
+              if (isCompleted) bgColor = colors.primary;
+              else if (hasSession) bgColor = colors.primary + "70";
+              else if (isSelected) bgColor = colors.secondary;
 
-            const textColor = isCompleted || hasSession ? colors.primaryForeground : colors.foreground;
+              const textColor = isCompleted || hasSession ? colors.primaryForeground : colors.foreground;
 
-            return (
-              <TouchableOpacity
-                key={i}
-                onPress={() => handleDayTap(dateStr)}
-                style={[
-                  styles.dayCell,
-                  { backgroundColor: bgColor },
-                  isToday && !isSelected && !hasSession && { borderColor: colors.primary, borderWidth: 1.5 },
-                  isExpanded && { borderColor: colors.primary, borderWidth: 2 },
-                ]}
-              >
-                <Text style={[styles.dayText, { color: textColor }]}>{format(date, "d")}</Text>
-                {isCompleted && (
-                  <View style={[styles.dot, { backgroundColor: colors.primaryForeground + "cc" }]} />
-                )}
-              </TouchableOpacity>
-            );
-          })}
-        </View>
+              return (
+                <TouchableOpacity
+                  key={di}
+                  onPress={() => handleDayTap(dateStr)}
+                  style={[
+                    styles.dayCell,
+                    { backgroundColor: bgColor },
+                    isToday && !isSelected && !hasSession && { borderColor: colors.primary, borderWidth: 1.5 },
+                    isExpanded && { borderColor: colors.primary, borderWidth: 2 },
+                  ]}
+                >
+                  <Text style={[styles.dayText, { color: textColor }]}>{format(date, "d")}</Text>
+                  {isCompleted && (
+                    <View style={[styles.dot, { backgroundColor: colors.primaryForeground + "cc" }]} />
+                  )}
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        ))}
       </View>
 
       {/* Legend */}
@@ -324,7 +327,7 @@ const styles = StyleSheet.create({
   calendarContainer: { paddingHorizontal: 12 },
   weekHeaders: { flexDirection: "row", justifyContent: "space-around", marginBottom: 10 },
   weekDayText: { width: 38, textAlign: "center", fontSize: 12, fontFamily: "Inter_700Bold" },
-  daysGrid: { flexDirection: "row", flexWrap: "wrap", justifyContent: "space-around", rowGap: 6 },
+  weekRow: { flexDirection: "row", justifyContent: "space-around", marginBottom: 6 },
   dayCellEmpty: { width: 38, height: 38 },
   dayCell: { width: 38, height: 38, borderRadius: 10, justifyContent: "center", alignItems: "center" },
   dayText: { fontSize: 14, fontFamily: "Inter_500Medium" },

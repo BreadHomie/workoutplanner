@@ -10,6 +10,7 @@ import {
 import { format, addDays, subDays } from "date-fns";
 import { router } from "expo-router";
 import * as Haptics from "expo-haptics";
+import { useQueryClient } from "@tanstack/react-query";
 import { useColors } from "@/hooks/useColors";
 
 const DIFFICULTY_OPTIONS = ["Beginner", "Intermediate", "Advanced"];
@@ -72,6 +73,7 @@ const cStyles = StyleSheet.create({
 export default function GenerateScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
+  const queryClient = useQueryClient();
 
   const { data: profile, isLoading: isProfileLoading } = useGetProfile();
   const updateProfile = useUpdateProfile();
@@ -119,6 +121,7 @@ export default function GenerateScreen() {
       {
         onSuccess: () => {
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          queryClient.invalidateQueries({ queryKey: ["/api/sessions"] });
           router.push("/(tabs)/history");
         },
       }
@@ -243,7 +246,7 @@ export default function GenerateScreen() {
       <TouchableOpacity
         style={[styles.generateBtn, { backgroundColor: colors.primary, marginTop: 32 }]}
         onPress={handleGenerate}
-        disabled={generateWorkoutMut.isPending}
+        disabled={updateProfile.isPending || generateWorkoutMut.isPending}
       >
         {generateWorkoutMut.isPending ? (
           <ActivityIndicator color={colors.primaryForeground} />
