@@ -28,6 +28,7 @@ import type {
   HealthStatus,
   ListExercisesParams,
   ListSessionsParams,
+  PersonalRecord,
   PlannedSession,
   SaveScheduleBulkInput,
   ScheduleEntry,
@@ -1456,6 +1457,83 @@ export function useGetStatsSummary<TData = Awaited<ReturnType<typeof getStatsSum
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetStatsSummaryQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getGetPersonalRecordsUrl = () => {
+
+
+
+
+  return `/api/stats/personal-records`
+}
+
+/**
+ * @summary Get all-time personal records grouped by muscle group
+ */
+export const getPersonalRecords = async ( options?: RequestInit): Promise<PersonalRecord[]> => {
+
+  return customFetch<PersonalRecord[]>(getGetPersonalRecordsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetPersonalRecordsQueryKey = () => {
+    return [
+    `/api/stats/personal-records`
+    ] as const;
+    }
+
+
+export const getGetPersonalRecordsQueryOptions = <TData = Awaited<ReturnType<typeof getPersonalRecords>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPersonalRecords>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetPersonalRecordsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getPersonalRecords>>> = ({ signal }) => getPersonalRecords({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getPersonalRecords>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetPersonalRecordsQueryResult = NonNullable<Awaited<ReturnType<typeof getPersonalRecords>>>
+export type GetPersonalRecordsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Get all-time personal records grouped by muscle group
+ */
+
+export function useGetPersonalRecords<TData = Awaited<ReturnType<typeof getPersonalRecords>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPersonalRecords>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetPersonalRecordsQueryOptions(options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

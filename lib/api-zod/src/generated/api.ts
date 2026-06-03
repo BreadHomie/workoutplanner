@@ -592,3 +592,17 @@ export const GetStatsSummaryResponse = zod.object({
 })
 
 
+/**
+ * @summary Get all-time personal records grouped by muscle group
+ */
+export const GetPersonalRecordsResponseItem = zod.object({
+  "exerciseId": zod.number(),
+  "exerciseName": zod.string(),
+  "muscleGroup": zod.string().describe('Primary muscle group label (Chest, Back, Legs, Core, Arms, Shoulders)'),
+  "bestWeight": zod.number(),
+  "reps": zod.number(),
+  "achievedAt": zod.coerce.date().optional()
+})
+export const GetPersonalRecordsResponse = zod.array(GetPersonalRecordsResponseItem)
+
+

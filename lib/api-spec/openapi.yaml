@@ -399,6 +399,21 @@ paths:
               schema:
                 $ref: "#/components/schemas/StatsSummary"
 
+  /stats/personal-records:
+    get:
+      operationId: getPersonalRecords
+      tags: [sessions]
+      summary: Get all-time personal records grouped by muscle group
+      responses:
+        "200":
+          description: Personal records
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PersonalRecord"
+
 components:
   schemas:
     HealthStatus:
@@ -787,3 +802,22 @@ components:
         completedSessions:
           type: integer
       required: [totalSessions, currentStreak, thisWeekCount, totalExercisesLogged, completedSessions]
+
+    PersonalRecord:
+      type: object
+      properties:
+        exerciseId:
+          type: integer
+        exerciseName:
+          type: string
+        muscleGroup:
+          type: string
+          description: Primary muscle group label (Chest, Back, Legs, Core, Arms, Shoulders)
+        bestWeight:
+          type: number
+        reps:
+          type: integer
+        achievedAt:
+          type: string
+          format: date-time
+      required: [exerciseId, exerciseName, muscleGroup, bestWeight, reps]

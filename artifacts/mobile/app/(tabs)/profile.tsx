@@ -1,10 +1,29 @@
-import { useGetProfile, useGetStatsSummary } from "@workspace/api-client-react";
-import React from "react";
-import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from "react-native";
+import { useGetPersonalRecords, useGetProfile, useGetStatsSummary } from "@workspace/api-client-react";
+import React, { useState } from "react";
+import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Svg, { Circle } from "react-native-svg";
 import { Feather } from "@expo/vector-icons";
 import { useColors } from "@/hooks/useColors";
+
+const MUSCLE_GROUP_ORDER = ["Chest", "Back", "Legs", "Core", "Arms", "Shoulders", "Other"];
+
+const MUSCLE_ICONS: Record<string, string> = {
+  Chest: "crosshair",
+  Back: "activity",
+  Legs: "anchor",
+  Core: "wind",
+  Arms: "zap",
+  Shoulders: "sun",
+  Other: "circle",
+};
+
+function getLevelLabel(level: number) {
+  if (level <= 3) return "Beginner Lifter";
+  if (level <= 7) return "Intermediate Lifter";
+  if (level <= 12) return "Advanced Lifter";
+  return "Elite Lifter";
+}
 
 export default function ProfileScreen() {
   const colors = useColors();
@@ -12,6 +31,18 @@ export default function ProfileScreen() {
 
   const { data: profile, isLoading: isProfileLoading } = useGetProfile();
   const { data: stats, isLoading: isStatsLoading } = useGetStatsSummary();
+  const { data: personalRecords, isLoading: isPRLoading } = useGetPersonalRecords();
+
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set(MUSCLE_GROUP_ORDER));
+
+  const toggleGroup = (group: string) => {
+    setExpandedGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(group)) next.delete(group);
+      else next.add(group);
+      return next;
+    });
+  };
 
   if (isProfileLoading || isStatsLoading) {
     return (
@@ -31,15 +62,22 @@ export default function ProfileScreen() {
   const progress = Math.min(thisWeekCount / targetCadence, 1);
   const strokeDashoffset = circumference - progress * circumference;
 
-  const getLevelLabel = (level: number) => {
-    if (level <= 3) return "Beginner Lifter";
-    if (level <= 7) return "Intermediate Lifter";
-    if (level <= 12) return "Advanced Lifter";
-    return "Elite Lifter";
-  };
-
   const currentLevelXp = profile.totalXp % 100;
-  const progressWidth = `${(currentLevelXp / 100) * 100}%`;
+
+  // Group records by muscle group, sorted by bestWeight DESC within each group
+  const groupedRecords: Record<string, typeof personalRecords> = {};
+  if (personalRecords) {
+    for (const pr of personalRecords) {
+      const g = pr.muscleGroup || "Other";
+      if (!groupedRecords[g]) groupedRecords[g] = [];
+      groupedRecords[g]!.push(pr);
+    }
+    for (const g of Object.keys(groupedRecords)) {
+      groupedRecords[g]!.sort((a, b) => (b.bestWeight ?? 0) - (a.bestWeight ?? 0));
+    }
+  }
+
+  const hasAnyRecords = personalRecords && personalRecords.length > 0;
 
   return (
     <ScrollView
@@ -52,19 +90,30 @@ export default function ProfileScreen() {
     >
       <Text style={[styles.header, { color: colors.foreground }]}>Profile</Text>
 
-      {/* XP/Level Card */}
+      {/* XP / Level Card */}
       <View style={[styles.xpCard, { backgroundColor: colors.card }]}>
-        <Text style={[styles.levelText, { color: colors.primary }]}>Level {profile.level}</Text>
-        <Text style={[styles.levelLabel, { color: colors.foreground }]}>{getLevelLabel(profile.level)}</Text>
-        
-        <View style={[styles.progressBarBg, { backgroundColor: colors.muted }]}>
-          <View style={[styles.progressBarFill, { backgroundColor: colors.primary, width: progressWidth as any }]} />
+        <View style={styles.xpTopRow}>
+          <View>
+            <Text style={[styles.levelText, { color: colors.primary }]}>Level {profile.level}</Text>
+            <Text style={[styles.levelLabel, { color: colors.foreground }]}>{getLevelLabel(profile.level)}</Text>
+          </View>
+          <View style={[styles.coinsBadge, { backgroundColor: colors.muted }]}>
+            <Feather name="star" size={14} color={colors.primary} />
+            <Text style={[styles.coinsText, { color: colors.primary }]}>{profile.totalCoins}</Text>
+          </View>
         </View>
-        <Text style={[styles.xpText, { color: colors.mutedForeground }]}>{currentLevelXp} / 100 XP to next level</Text>
 
-        <View style={styles.coinsRow}>
-          <Feather name="star" size={16} color={colors.primary} />
-          <Text style={[styles.coinsText, { color: colors.mutedForeground }]}>{profile.totalCoins} coins</Text>
+        <View style={[styles.progressBarBg, { backgroundColor: colors.muted }]}>
+          <View
+            style={[
+              styles.progressBarFill,
+              { backgroundColor: colors.primary, width: `${(currentLevelXp / 100) * 100}%` as any },
+            ]}
+          />
+        </View>
+        <View style={styles.xpRow}>
+          <Text style={[styles.xpMuted, { color: colors.mutedForeground }]}>{currentLevelXp} XP</Text>
+          <Text style={[styles.xpMuted, { color: colors.mutedForeground }]}>100 XP</Text>
         </View>
       </View>
 
@@ -90,10 +139,15 @@ export default function ProfileScreen() {
       <View style={styles.ringContainer}>
         <View style={styles.svgWrapper}>
           <Svg width="120" height="120" viewBox="0 0 120 120">
-            <Circle cx="60" cy="60" r={radius} stroke={colors.secondary} strokeWidth={strokeWidth} fill="transparent" />
             <Circle
-              cx="60" cy="60" r={radius} stroke={colors.primary} strokeWidth={strokeWidth} fill="transparent"
-              strokeDasharray={circumference} strokeDashoffset={strokeDashoffset} strokeLinecap="round" transform="rotate(-90 60 60)"
+              cx="60" cy="60" r={radius}
+              stroke={colors.secondary} strokeWidth={strokeWidth} fill="transparent"
+            />
+            <Circle
+              cx="60" cy="60" r={radius}
+              stroke={colors.primary} strokeWidth={strokeWidth} fill="transparent"
+              strokeDasharray={circumference} strokeDashoffset={strokeDashoffset}
+              strokeLinecap="round" transform="rotate(-90 60 60)"
             />
           </Svg>
           <View style={styles.ringTextContainer}>
@@ -104,6 +158,92 @@ export default function ProfileScreen() {
         <Text style={[styles.ringLabel, { color: colors.mutedForeground }]}>This Week</Text>
       </View>
 
+      {/* Personal Records */}
+      <View style={styles.prSection}>
+        <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Personal Records</Text>
+
+        {isPRLoading && (
+          <View style={styles.prLoading}>
+            <ActivityIndicator color={colors.primary} />
+          </View>
+        )}
+
+        {!isPRLoading && !hasAnyRecords && (
+          <View style={[styles.prEmpty, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <Feather name="award" size={28} color={colors.mutedForeground} />
+            <Text style={[styles.prEmptyText, { color: colors.mutedForeground }]}>
+              Log workouts to see your personal records
+            </Text>
+          </View>
+        )}
+
+        {!isPRLoading && hasAnyRecords &&
+          MUSCLE_GROUP_ORDER.filter((g) => groupedRecords[g] && groupedRecords[g]!.length > 0).map((group) => {
+            const isExpanded = expandedGroups.has(group);
+            const records = groupedRecords[group]!;
+            const iconName = (MUSCLE_ICONS[group] ?? "circle") as any;
+
+            return (
+              <View key={group} style={[styles.groupCard, { backgroundColor: colors.card }]}>
+                <TouchableOpacity
+                  style={styles.groupHeader}
+                  onPress={() => toggleGroup(group)}
+                  activeOpacity={0.7}
+                >
+                  <View style={styles.groupHeaderLeft}>
+                    <View style={[styles.groupIconBox, { backgroundColor: colors.muted }]}>
+                      <Feather name={iconName} size={14} color={colors.primary} />
+                    </View>
+                    <Text style={[styles.groupTitle, { color: colors.foreground }]}>{group}</Text>
+                    <View style={[styles.countBubble, { backgroundColor: colors.muted }]}>
+                      <Text style={[styles.countBubbleText, { color: colors.mutedForeground }]}>
+                        {records.length}
+                      </Text>
+                    </View>
+                  </View>
+                  <Feather
+                    name={isExpanded ? "chevron-up" : "chevron-down"}
+                    size={16}
+                    color={colors.mutedForeground}
+                  />
+                </TouchableOpacity>
+
+                {isExpanded && (
+                  <View style={[styles.groupBody, { borderTopColor: colors.border }]}>
+                    {records.map((pr, idx) => (
+                      <View
+                        key={pr.exerciseId}
+                        style={[
+                          styles.prRow,
+                          idx < records.length - 1 && { borderBottomWidth: 1, borderBottomColor: colors.border },
+                        ]}
+                      >
+                        <View style={styles.prRowLeft}>
+                          <Text style={[styles.prRank, { color: idx === 0 ? colors.primary : colors.mutedForeground }]}>
+                            #{idx + 1}
+                          </Text>
+                          <Text style={[styles.prName, { color: colors.foreground }]} numberOfLines={1}>
+                            {pr.exerciseName}
+                          </Text>
+                        </View>
+                        <View style={[styles.prBadge, { backgroundColor: idx === 0 ? colors.primary : colors.muted }]}>
+                          <Text
+                            style={[
+                              styles.prBadgeText,
+                              { color: idx === 0 ? colors.primaryForeground : colors.foreground },
+                            ]}
+                          >
+                            {pr.bestWeight} lbs
+                          </Text>
+                        </View>
+                      </View>
+                    ))}
+                  </View>
+                )}
+              </View>
+            );
+          })}
+      </View>
     </ScrollView>
   );
 }
@@ -111,17 +251,19 @@ export default function ProfileScreen() {
 const styles = StyleSheet.create({
   center: { flex: 1, justifyContent: "center", alignItems: "center" },
   header: { fontSize: 32, fontFamily: "Inter_700Bold", marginBottom: 24, letterSpacing: -1 },
-  
-  xpCard: { padding: 20, borderRadius: 16, marginBottom: 32 },
-  levelText: { fontSize: 40, fontFamily: "Inter_700Bold", marginBottom: 4 },
-  levelLabel: { fontSize: 16, fontFamily: "Inter_600SemiBold", marginBottom: 24 },
-  progressBarBg: { height: 8, borderRadius: 4, width: "100%", marginBottom: 8, overflow: "hidden" },
-  progressBarFill: { height: "100%", borderRadius: 4 },
-  xpText: { fontSize: 14, fontFamily: "Inter_500Medium", marginBottom: 16 },
-  coinsRow: { flexDirection: "row", alignItems: "center", gap: 6 },
-  coinsText: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
 
-  statsGrid: { flexDirection: "row", gap: 12, marginBottom: 32 },
+  xpCard: { padding: 20, borderRadius: 16, marginBottom: 24 },
+  xpTopRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 20 },
+  levelText: { fontSize: 36, fontFamily: "Inter_700Bold", lineHeight: 40 },
+  levelLabel: { fontSize: 15, fontFamily: "Inter_600SemiBold", marginTop: 2 },
+  coinsBadge: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 100 },
+  coinsText: { fontSize: 15, fontFamily: "Inter_700Bold" },
+  progressBarBg: { height: 8, borderRadius: 4, width: "100%", marginBottom: 6, overflow: "hidden" },
+  progressBarFill: { height: "100%", borderRadius: 4 },
+  xpRow: { flexDirection: "row", justifyContent: "space-between" },
+  xpMuted: { fontSize: 12, fontFamily: "Inter_500Medium" },
+
+  statsGrid: { flexDirection: "row", gap: 12, marginBottom: 24 },
   statCard: { flex: 1, padding: 16, borderRadius: 12, borderWidth: 1, alignItems: "center" },
   statValue: { fontSize: 24, fontFamily: "Inter_700Bold", marginBottom: 4 },
   statLabel: { fontSize: 12, fontFamily: "Inter_500Medium" },
@@ -132,4 +274,35 @@ const styles = StyleSheet.create({
   ringCount: { fontSize: 32, fontFamily: "Inter_700Bold", lineHeight: 36 },
   ringTarget: { fontSize: 12, fontFamily: "Inter_500Medium" },
   ringLabel: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
+
+  prSection: { gap: 12 },
+  sectionTitle: { fontSize: 22, fontFamily: "Inter_700Bold", marginBottom: 4, letterSpacing: -0.5 },
+  prLoading: { paddingVertical: 32, alignItems: "center" },
+  prEmpty: {
+    borderWidth: 1, borderRadius: 16, padding: 32,
+    alignItems: "center", gap: 12,
+  },
+  prEmptyText: { fontSize: 14, fontFamily: "Inter_500Medium", textAlign: "center", lineHeight: 20 },
+
+  groupCard: { borderRadius: 16, overflow: "hidden" },
+  groupHeader: {
+    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+    paddingHorizontal: 16, paddingVertical: 14,
+  },
+  groupHeaderLeft: { flexDirection: "row", alignItems: "center", gap: 10, flex: 1 },
+  groupIconBox: { width: 28, height: 28, borderRadius: 8, justifyContent: "center", alignItems: "center" },
+  groupTitle: { fontSize: 16, fontFamily: "Inter_700Bold", flex: 1 },
+  countBubble: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 100 },
+  countBubbleText: { fontSize: 12, fontFamily: "Inter_600SemiBold" },
+
+  groupBody: { borderTopWidth: 1, paddingHorizontal: 16 },
+  prRow: {
+    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+    paddingVertical: 12,
+  },
+  prRowLeft: { flexDirection: "row", alignItems: "center", gap: 10, flex: 1, marginRight: 12 },
+  prRank: { fontSize: 13, fontFamily: "Inter_700Bold", width: 24 },
+  prName: { fontSize: 14, fontFamily: "Inter_500Medium", flex: 1 },
+  prBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
+  prBadgeText: { fontSize: 13, fontFamily: "Inter_700Bold" },
 });

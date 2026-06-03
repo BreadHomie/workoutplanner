@@ -241,6 +241,16 @@ export interface StatsSummary {
   completedSessions: number;
 }
 
+export interface PersonalRecord {
+  exerciseId: number;
+  exerciseName: string;
+  /** Primary muscle group label (Chest, Back, Legs, Core, Arms, Shoulders) */
+  muscleGroup: string;
+  bestWeight: number;
+  reps: number;
+  achievedAt?: string;
+}
+
 export type ListExercisesParams = {
 difficulty?: ListExercisesDifficulty;
 equipment?: string;

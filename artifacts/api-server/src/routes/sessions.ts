@@ -205,6 +205,51 @@ router.post("/sessions/:sessionId/logs/:logId/complete", async (req, res): Promi
   res.json(reward ?? { xpEarned: XP_PER_EXERCISE, coinsEarned: COINS_PER_EXERCISE, totalXp: 0, totalCoins: 0, level: 1, leveledUp: false });
 });
 
+router.get("/stats/personal-records", async (_req, res): Promise<void> => {
+  // For each exercise, get the log with the highest weight
+  const records = await db
+    .select({
+      exerciseId: exercisesTable.id,
+      exerciseName: exercisesTable.name,
+      hitChest: exercisesTable.hitChest,
+      hitBack: exercisesTable.hitBack,
+      hitLegs: exercisesTable.hitLegs,
+      hitCore: exercisesTable.hitCore,
+      hitArm: exercisesTable.hitArm,
+      hitShoulder: exercisesTable.hitShoulder,
+      bestWeight: sql<number>`MAX(${sessionLogsTable.weightUsed})`,
+      reps: sql<number>`(array_agg(${sessionLogsTable.reps} ORDER BY ${sessionLogsTable.weightUsed} DESC))[1]`,
+      achievedAt: sql<string>`MAX(${sessionLogsTable.loggedAt})`,
+    })
+    .from(sessionLogsTable)
+    .innerJoin(exercisesTable, eq(sessionLogsTable.exerciseId, exercisesTable.id))
+    .where(sql`${sessionLogsTable.weightUsed} IS NOT NULL AND ${sessionLogsTable.weightUsed} > 0`)
+    .groupBy(
+      exercisesTable.id,
+      exercisesTable.name,
+      exercisesTable.hitChest,
+      exercisesTable.hitBack,
+      exercisesTable.hitLegs,
+      exercisesTable.hitCore,
+      exercisesTable.hitArm,
+      exercisesTable.hitShoulder,
+    )
+    .orderBy(exercisesTable.name);
+
+  const result = records.map((r) => {
+    let muscleGroup = "Other";
+    if (r.hitChest) muscleGroup = "Chest";
+    else if (r.hitBack) muscleGroup = "Back";
+    else if (r.hitLegs) muscleGroup = "Legs";
+    else if (r.hitCore) muscleGroup = "Core";
+    else if (r.hitArm) muscleGroup = "Arms";
+    else if (r.hitShoulder) muscleGroup = "Shoulders";
+    return { exerciseId: r.exerciseId, exerciseName: r.exerciseName, muscleGroup, bestWeight: r.bestWeight, reps: r.reps, achievedAt: r.achievedAt };
+  });
+
+  res.json(result);
+});
+
 router.get("/stats/summary", async (_req, res): Promise<void> => {
   const [{ total }] = await db.select({ total: count() }).from(workoutSessionsTable);
   const [{ exerciseTotal }] = await db.select({ exerciseTotal: count() }).from(sessionLogsTable);

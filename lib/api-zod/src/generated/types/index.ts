@@ -21,6 +21,7 @@ export * from './healthStatus';
 export * from './listExercisesDifficulty';
 export * from './listExercisesParams';
 export * from './listSessionsParams';
+export * from './personalRecord';
 export * from './plannedSession';
 export * from './saveScheduleBulkInput';
 export * from './scheduleEntry';
