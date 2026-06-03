@@ -6,8 +6,8 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface CreateScheduleEntryInput {
-  scheduledDate: Date;
-  splitType: string;
-  splitVariant: string;
+export interface UpdateSessionInput {
+  isCompleted?: boolean;
+  photoUri?: string;
+  completedAt?: Date;
 }

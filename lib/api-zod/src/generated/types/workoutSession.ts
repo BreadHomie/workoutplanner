@@ -12,6 +12,8 @@ export interface WorkoutSession {
   splitVariant: string;
   scheduledDate?: string;
   completedAt?: Date;
-  createdAt: Date;
+  isCompleted: boolean;
+  photoUri?: string;
   logCount: number;
+  createdAt: Date;
 }

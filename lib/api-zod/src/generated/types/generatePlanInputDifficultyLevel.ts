@@ -6,10 +6,10 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export type GenerateWorkoutInputDifficultyLevel = typeof GenerateWorkoutInputDifficultyLevel[keyof typeof GenerateWorkoutInputDifficultyLevel];
+export type GeneratePlanInputDifficultyLevel = typeof GeneratePlanInputDifficultyLevel[keyof typeof GeneratePlanInputDifficultyLevel];
 
 
-export const GenerateWorkoutInputDifficultyLevel = {
+export const GeneratePlanInputDifficultyLevel = {
   Beginner: 'Beginner',
   Intermediate: 'Intermediate',
   Advanced: 'Advanced',

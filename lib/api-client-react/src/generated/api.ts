@@ -24,18 +24,21 @@ import type {
   CreateScheduleEntryInput,
   CreateSessionInput,
   Exercise,
-  GenerateWorkoutInput,
-  GeneratedWorkout,
+  GeneratePlanInput,
   HealthStatus,
   ListExercisesParams,
   ListSessionsParams,
+  PlannedSession,
+  SaveScheduleBulkInput,
   ScheduleEntry,
   SessionLog,
   StatsSummary,
   UpdateProfileInput,
+  UpdateSessionInput,
+  UpdateSessionLogInput,
   UserProfile,
   WorkoutSession,
-  WorkoutSessionDetail
+  XpReward
 } from './api.schemas';
 
 import { customFetch } from '../custom-fetch';
@@ -359,7 +362,7 @@ export function useListExercises<TData = Awaited<ReturnType<typeof listExercises
 
 
 
-export const getGenerateWorkoutUrl = () => {
+export const getGenerateWorkoutPlanUrl = () => {
 
 
 
@@ -368,28 +371,28 @@ export const getGenerateWorkoutUrl = () => {
 }
 
 /**
- * @summary Generate a workout based on split and preferences
+ * @summary Generate a workout plan (single, weekly, or monthly) and persist sessions
  */
-export const generateWorkout = async (generateWorkoutInput: GenerateWorkoutInput, options?: RequestInit): Promise<GeneratedWorkout> => {
+export const generateWorkoutPlan = async (generatePlanInput: GeneratePlanInput, options?: RequestInit): Promise<PlannedSession[]> => {
 
-  return customFetch<GeneratedWorkout>(getGenerateWorkoutUrl(),
+  return customFetch<PlannedSession[]>(getGenerateWorkoutPlanUrl(),
   {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
     body: JSON.stringify(
-      generateWorkoutInput,)
+      generatePlanInput,)
   }
 );}
 
 
 
 
-export const getGenerateWorkoutMutationOptions = <TError = ErrorType<unknown>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof generateWorkout>>, TError,{data: BodyType<GenerateWorkoutInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
-): UseMutationOptions<Awaited<ReturnType<typeof generateWorkout>>, TError,{data: BodyType<GenerateWorkoutInput>}, TContext> => {
+export const getGenerateWorkoutPlanMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof generateWorkoutPlan>>, TError,{data: BodyType<GeneratePlanInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof generateWorkoutPlan>>, TError,{data: BodyType<GeneratePlanInput>}, TContext> => {
 
-const mutationKey = ['generateWorkout'];
+const mutationKey = ['generateWorkoutPlan'];
 const {mutation: mutationOptions, request: requestOptions} = options ?
       options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
       options
@@ -399,10 +402,10 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof generateWorkout>>, {data: BodyType<GenerateWorkoutInput>}> = (props) => {
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof generateWorkoutPlan>>, {data: BodyType<GeneratePlanInput>}> = (props) => {
           const {data} = props ?? {};
 
-          return  generateWorkout(data,requestOptions)
+          return  generateWorkoutPlan(data,requestOptions)
         }
 
 
@@ -412,22 +415,22 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
   return  { mutationFn, ...mutationOptions }}
 
-    export type GenerateWorkoutMutationResult = NonNullable<Awaited<ReturnType<typeof generateWorkout>>>
-    export type GenerateWorkoutMutationBody = BodyType<GenerateWorkoutInput>
-    export type GenerateWorkoutMutationError = ErrorType<unknown>
+    export type GenerateWorkoutPlanMutationResult = NonNullable<Awaited<ReturnType<typeof generateWorkoutPlan>>>
+    export type GenerateWorkoutPlanMutationBody = BodyType<GeneratePlanInput>
+    export type GenerateWorkoutPlanMutationError = ErrorType<unknown>
 
     /**
- * @summary Generate a workout based on split and preferences
+ * @summary Generate a workout plan (single, weekly, or monthly) and persist sessions
  */
-export const useGenerateWorkout = <TError = ErrorType<unknown>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof generateWorkout>>, TError,{data: BodyType<GenerateWorkoutInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+export const useGenerateWorkoutPlan = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof generateWorkoutPlan>>, TError,{data: BodyType<GeneratePlanInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
-        Awaited<ReturnType<typeof generateWorkout>>,
+        Awaited<ReturnType<typeof generateWorkoutPlan>>,
         TError,
-        {data: BodyType<GenerateWorkoutInput>},
+        {data: BodyType<GeneratePlanInput>},
         TContext
       > => {
-      return useMutation(getGenerateWorkoutMutationOptions(options));
+      return useMutation(getGenerateWorkoutPlanMutationOptions(options));
     }
 
 export const getListSessionsUrl = (params?: ListSessionsParams,) => {
@@ -446,7 +449,7 @@ export const getListSessionsUrl = (params?: ListSessionsParams,) => {
 }
 
 /**
- * @summary List workout sessions (recent history)
+ * @summary List workout sessions
  */
 export const listSessions = async (params?: ListSessionsParams, options?: RequestInit): Promise<WorkoutSession[]> => {
 
@@ -493,7 +496,7 @@ export type ListSessionsQueryError = ErrorType<unknown>
 
 
 /**
- * @summary List workout sessions (recent history)
+ * @summary List workout sessions
  */
 
 export function useListSessions<TData = Awaited<ReturnType<typeof listSessions>>, TError = ErrorType<unknown>>(
@@ -594,11 +597,11 @@ export const getGetSessionUrl = (sessionId: number,) => {
 }
 
 /**
- * @summary Get a specific session with all logs
+ * @summary Get a specific session with all logs and workout plan
  */
-export const getSession = async (sessionId: number, options?: RequestInit): Promise<WorkoutSessionDetail> => {
+export const getSession = async (sessionId: number, options?: RequestInit): Promise<PlannedSession> => {
 
-  return customFetch<WorkoutSessionDetail>(getGetSessionUrl(sessionId),
+  return customFetch<PlannedSession>(getGetSessionUrl(sessionId),
   {
     ...options,
     method: 'GET'
@@ -641,7 +644,7 @@ export type GetSessionQueryError = ErrorType<unknown>
 
 
 /**
- * @summary Get a specific session with all logs
+ * @summary Get a specific session with all logs and workout plan
  */
 
 export function useGetSession<TData = Awaited<ReturnType<typeof getSession>>, TError = ErrorType<unknown>>(
@@ -662,6 +665,148 @@ export function useGetSession<TData = Awaited<ReturnType<typeof getSession>>, TE
 
 
 
+export const getUpdateSessionUrl = (sessionId: number,) => {
+
+
+
+
+  return `/api/sessions/${sessionId}`
+}
+
+/**
+ * @summary Update session (photo, mark complete)
+ */
+export const updateSession = async (sessionId: number,
+    updateSessionInput: UpdateSessionInput, options?: RequestInit): Promise<WorkoutSession> => {
+
+  return customFetch<WorkoutSession>(getUpdateSessionUrl(sessionId),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      updateSessionInput,)
+  }
+);}
+
+
+
+
+export const getUpdateSessionMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateSession>>, TError,{sessionId: number;data: BodyType<UpdateSessionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateSession>>, TError,{sessionId: number;data: BodyType<UpdateSessionInput>}, TContext> => {
+
+const mutationKey = ['updateSession'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateSession>>, {sessionId: number;data: BodyType<UpdateSessionInput>}> = (props) => {
+          const {sessionId,data} = props ?? {};
+
+          return  updateSession(sessionId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateSessionMutationResult = NonNullable<Awaited<ReturnType<typeof updateSession>>>
+    export type UpdateSessionMutationBody = BodyType<UpdateSessionInput>
+    export type UpdateSessionMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Update session (photo, mark complete)
+ */
+export const useUpdateSession = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateSession>>, TError,{sessionId: number;data: BodyType<UpdateSessionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateSession>>,
+        TError,
+        {sessionId: number;data: BodyType<UpdateSessionInput>},
+        TContext
+      > => {
+      return useMutation(getUpdateSessionMutationOptions(options));
+    }
+
+export const getCompleteWorkoutUrl = (sessionId: number,) => {
+
+
+
+
+  return `/api/sessions/${sessionId}/complete`
+}
+
+/**
+ * @summary Mark workout complete and award XP + coins
+ */
+export const completeWorkout = async (sessionId: number, options?: RequestInit): Promise<XpReward> => {
+
+  return customFetch<XpReward>(getCompleteWorkoutUrl(sessionId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+export const getCompleteWorkoutMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof completeWorkout>>, TError,{sessionId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof completeWorkout>>, TError,{sessionId: number}, TContext> => {
+
+const mutationKey = ['completeWorkout'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof completeWorkout>>, {sessionId: number}> = (props) => {
+          const {sessionId} = props ?? {};
+
+          return  completeWorkout(sessionId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CompleteWorkoutMutationResult = NonNullable<Awaited<ReturnType<typeof completeWorkout>>>
+
+    export type CompleteWorkoutMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Mark workout complete and award XP + coins
+ */
+export const useCompleteWorkout = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof completeWorkout>>, TError,{sessionId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof completeWorkout>>,
+        TError,
+        {sessionId: number},
+        TContext
+      > => {
+      return useMutation(getCompleteWorkoutMutationOptions(options));
+    }
+
 export const getAddSessionLogUrl = (sessionId: number,) => {
 
 
@@ -671,7 +816,7 @@ export const getAddSessionLogUrl = (sessionId: number,) => {
 }
 
 /**
- * @summary Add exercise log entry to a session
+ * @summary Add or update an exercise log entry for a session
  */
 export const addSessionLog = async (sessionId: number,
     addSessionLogInput: AddSessionLogInput, options?: RequestInit): Promise<SessionLog> => {
@@ -721,7 +866,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
     export type AddSessionLogMutationError = ErrorType<unknown>
 
     /**
- * @summary Add exercise log entry to a session
+ * @summary Add or update an exercise log entry for a session
  */
 export const useAddSessionLog = <TError = ErrorType<unknown>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof addSessionLog>>, TError,{sessionId: number;data: BodyType<AddSessionLogInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
@@ -734,6 +879,152 @@ export const useAddSessionLog = <TError = ErrorType<unknown>,
       return useMutation(getAddSessionLogMutationOptions(options));
     }
 
+export const getUpdateSessionLogUrl = (sessionId: number,
+    logId: number,) => {
+
+
+
+
+  return `/api/sessions/${sessionId}/logs/${logId}`
+}
+
+/**
+ * @summary Update a specific log entry (weight, reps, isCompleted)
+ */
+export const updateSessionLog = async (sessionId: number,
+    logId: number,
+    updateSessionLogInput: UpdateSessionLogInput, options?: RequestInit): Promise<SessionLog> => {
+
+  return customFetch<SessionLog>(getUpdateSessionLogUrl(sessionId,logId),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      updateSessionLogInput,)
+  }
+);}
+
+
+
+
+export const getUpdateSessionLogMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateSessionLog>>, TError,{sessionId: number;logId: number;data: BodyType<UpdateSessionLogInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateSessionLog>>, TError,{sessionId: number;logId: number;data: BodyType<UpdateSessionLogInput>}, TContext> => {
+
+const mutationKey = ['updateSessionLog'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateSessionLog>>, {sessionId: number;logId: number;data: BodyType<UpdateSessionLogInput>}> = (props) => {
+          const {sessionId,logId,data} = props ?? {};
+
+          return  updateSessionLog(sessionId,logId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateSessionLogMutationResult = NonNullable<Awaited<ReturnType<typeof updateSessionLog>>>
+    export type UpdateSessionLogMutationBody = BodyType<UpdateSessionLogInput>
+    export type UpdateSessionLogMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Update a specific log entry (weight, reps, isCompleted)
+ */
+export const useUpdateSessionLog = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateSessionLog>>, TError,{sessionId: number;logId: number;data: BodyType<UpdateSessionLogInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateSessionLog>>,
+        TError,
+        {sessionId: number;logId: number;data: BodyType<UpdateSessionLogInput>},
+        TContext
+      > => {
+      return useMutation(getUpdateSessionLogMutationOptions(options));
+    }
+
+export const getCompleteExerciseUrl = (sessionId: number,
+    logId: number,) => {
+
+
+
+
+  return `/api/sessions/${sessionId}/logs/${logId}/complete`
+}
+
+/**
+ * @summary Mark exercise complete and award XP
+ */
+export const completeExercise = async (sessionId: number,
+    logId: number, options?: RequestInit): Promise<XpReward> => {
+
+  return customFetch<XpReward>(getCompleteExerciseUrl(sessionId,logId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+export const getCompleteExerciseMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof completeExercise>>, TError,{sessionId: number;logId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof completeExercise>>, TError,{sessionId: number;logId: number}, TContext> => {
+
+const mutationKey = ['completeExercise'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof completeExercise>>, {sessionId: number;logId: number}> = (props) => {
+          const {sessionId,logId} = props ?? {};
+
+          return  completeExercise(sessionId,logId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CompleteExerciseMutationResult = NonNullable<Awaited<ReturnType<typeof completeExercise>>>
+
+    export type CompleteExerciseMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Mark exercise complete and award XP
+ */
+export const useCompleteExercise = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof completeExercise>>, TError,{sessionId: number;logId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof completeExercise>>,
+        TError,
+        {sessionId: number;logId: number},
+        TContext
+      > => {
+      return useMutation(getCompleteExerciseMutationOptions(options));
+    }
+
 export const getGetExerciseLastLogUrl = (exerciseId: number,) => {
 
 
@@ -743,7 +1034,7 @@ export const getGetExerciseLastLogUrl = (exerciseId: number,) => {
 }
 
 /**
- * @summary Get the last logged entry for an exercise (for progressive overload)
+ * @summary Get the last logged entry for an exercise
  */
 export const getExerciseLastLog = async (exerciseId: number, options?: RequestInit): Promise<SessionLog> => {
 
@@ -790,7 +1081,7 @@ export type GetExerciseLastLogQueryError = ErrorType<void>
 
 
 /**
- * @summary Get the last logged entry for an exercise (for progressive overload)
+ * @summary Get the last logged entry for an exercise
  */
 
 export function useGetExerciseLastLog<TData = Awaited<ReturnType<typeof getExerciseLastLog>>, TError = ErrorType<void>>(
@@ -820,7 +1111,7 @@ export const getGetScheduleUrl = () => {
 }
 
 /**
- * @summary Get scheduled workout sessions for the current/next week
+ * @summary Get all scheduled workout days
  */
 export const getSchedule = async ( options?: RequestInit): Promise<ScheduleEntry[]> => {
 
@@ -867,7 +1158,7 @@ export type GetScheduleQueryError = ErrorType<unknown>
 
 
 /**
- * @summary Get scheduled workout sessions for the current/next week
+ * @summary Get all scheduled workout days
  */
 
 export function useGetSchedule<TData = Awaited<ReturnType<typeof getSchedule>>, TError = ErrorType<unknown>>(
@@ -897,7 +1188,7 @@ export const getCreateScheduleEntryUrl = () => {
 }
 
 /**
- * @summary Create a scheduled workout entry
+ * @summary Create a scheduled workout day
  */
 export const createScheduleEntry = async (createScheduleEntryInput: CreateScheduleEntryInput, options?: RequestInit): Promise<ScheduleEntry> => {
 
@@ -946,7 +1237,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
     export type CreateScheduleEntryMutationError = ErrorType<unknown>
 
     /**
- * @summary Create a scheduled workout entry
+ * @summary Create a scheduled workout day
  */
 export const useCreateScheduleEntry = <TError = ErrorType<unknown>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createScheduleEntry>>, TError,{data: BodyType<CreateScheduleEntryInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
@@ -957,6 +1248,77 @@ export const useCreateScheduleEntry = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getCreateScheduleEntryMutationOptions(options));
+    }
+
+export const getSaveScheduleBulkUrl = () => {
+
+
+
+
+  return `/api/schedule/bulk`
+}
+
+/**
+ * @summary Save a set of scheduled dates for the month (replaces existing for that month)
+ */
+export const saveScheduleBulk = async (saveScheduleBulkInput: SaveScheduleBulkInput, options?: RequestInit): Promise<ScheduleEntry[]> => {
+
+  return customFetch<ScheduleEntry[]>(getSaveScheduleBulkUrl(),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      saveScheduleBulkInput,)
+  }
+);}
+
+
+
+
+export const getSaveScheduleBulkMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof saveScheduleBulk>>, TError,{data: BodyType<SaveScheduleBulkInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof saveScheduleBulk>>, TError,{data: BodyType<SaveScheduleBulkInput>}, TContext> => {
+
+const mutationKey = ['saveScheduleBulk'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof saveScheduleBulk>>, {data: BodyType<SaveScheduleBulkInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  saveScheduleBulk(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SaveScheduleBulkMutationResult = NonNullable<Awaited<ReturnType<typeof saveScheduleBulk>>>
+    export type SaveScheduleBulkMutationBody = BodyType<SaveScheduleBulkInput>
+    export type SaveScheduleBulkMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Save a set of scheduled dates for the month (replaces existing for that month)
+ */
+export const useSaveScheduleBulk = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof saveScheduleBulk>>, TError,{data: BodyType<SaveScheduleBulkInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof saveScheduleBulk>>,
+        TError,
+        {data: BodyType<SaveScheduleBulkInput>},
+        TContext
+      > => {
+      return useMutation(getSaveScheduleBulkMutationOptions(options));
     }
 
 export const getDeleteScheduleEntryUrl = (entryId: number,) => {
@@ -1038,7 +1400,7 @@ export const getGetStatsSummaryUrl = () => {
 }
 
 /**
- * @summary Get workout stats summary (total sessions, streak, this week count)
+ * @summary Get workout stats summary
  */
 export const getStatsSummary = async ( options?: RequestInit): Promise<StatsSummary> => {
 
@@ -1085,7 +1447,7 @@ export type GetStatsSummaryQueryError = ErrorType<unknown>
 
 
 /**
- * @summary Get workout stats summary (total sessions, streak, this week count)
+ * @summary Get workout stats summary
  */
 
 export function useGetStatsSummary<TData = Awaited<ReturnType<typeof getStatsSummary>>, TError = ErrorType<unknown>>(

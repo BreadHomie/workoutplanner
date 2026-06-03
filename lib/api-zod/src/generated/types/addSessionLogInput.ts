@@ -12,4 +12,5 @@ export interface AddSessionLogInput {
   reps: number;
   weightUsed?: number;
   notes?: string;
+  isCompleted?: boolean;
 }

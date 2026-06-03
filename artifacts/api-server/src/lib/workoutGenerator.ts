@@ -1,24 +1,13 @@
-import { and, eq, inArray, notInArray, or, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, or, sql } from "drizzle-orm";
 import { db } from "@workspace/db";
 import { exercisesTable, sessionLogsTable, workoutSessionsTable } from "@workspace/db";
 import type { Exercise } from "@workspace/db";
 
 export type MuscleGroup = "chest" | "back" | "legs" | "core" | "arm" | "shoulder";
 
-type SlotFilter = {
-  muscles: MuscleGroup[];
-  isCompound?: boolean;
-};
-
-type CircuitLayout = {
-  slots: SlotFilter[];
-};
-
-type SplitLayout = {
-  compound: SlotFilter;
-  compound2?: SlotFilter;
-  circuits: CircuitLayout[];
-};
+type SlotFilter = { muscles: MuscleGroup[]; isCompound?: boolean };
+type CircuitLayout = { slots: SlotFilter[] };
+type SplitLayout = { compound: SlotFilter; compound2?: SlotFilter; circuits: CircuitLayout[] };
 
 const SPLIT_LAYOUTS: Record<string, SplitLayout> = {
   "Full Body": {
@@ -96,6 +85,15 @@ const SPLIT_LAYOUTS: Record<string, SplitLayout> = {
   },
 };
 
+// Split cycles for each preferred program
+export const SPLIT_CYCLES: Record<string, Array<[string, string]>> = {
+  "Full Body": [["Full Body", "Standard"]],
+  "Upper/Lower": [["Upper", "Standard"], ["Lower", "Standard"]],
+  "Upper/Lower + Core": [["Upper", "Standard"], ["Lower", "Core"]],
+  "Push/Pull/Legs": [["Push", "Standard"], ["Pull", "Standard"], ["Legs", "Standard"]],
+  "Push/Pull/Legs + Core": [["Push", "Standard"], ["Pull", "Standard"], ["Legs", "Core"]],
+};
+
 function muscleFilter(muscles: MuscleGroup[]) {
   const conditions = muscles.map((m) => {
     switch (m) {
@@ -121,38 +119,37 @@ function equipmentFilter(equipment: string[]) {
   return inArray(exercisesTable.equipment, equipment);
 }
 
-function pickRandom(pool: Exercise[], usedIds: Set<number>, count = 1): Exercise[] {
+function pickRandom(pool: Exercise[], usedIds: Set<number>): Exercise | undefined {
   const available = pool.filter((e) => !usedIds.has(e.id));
-  const shuffled = [...available].sort(() => Math.random() - 0.5);
-  const picks = shuffled.slice(0, count);
-  picks.forEach((p) => usedIds.add(p.id));
-  return picks;
+  if (available.length === 0) return undefined;
+  const pick = available[Math.floor(Math.random() * available.length)];
+  usedIds.add(pick.id);
+  return pick;
 }
 
 async function getWeeklyUsedExerciseIds(weekStart: string): Promise<number[]> {
   const weekEnd = new Date(weekStart);
   weekEnd.setDate(weekEnd.getDate() + 7);
   const weekEndStr = weekEnd.toISOString().split("T")[0];
-
   const logs = await db
     .select({ exerciseId: sessionLogsTable.exerciseId })
     .from(sessionLogsTable)
     .innerJoin(workoutSessionsTable, eq(sessionLogsTable.sessionId, workoutSessionsTable.id))
     .where(
       and(
-        sql`${workoutSessionsTable.scheduledDate} >= ${weekStart}`,
-        sql`${workoutSessionsTable.scheduledDate} < ${weekEndStr}`
+        sql`${workoutSessionsTable.scheduled_date} >= ${weekStart}`,
+        sql`${workoutSessionsTable.scheduled_date} < ${weekEndStr}`
       )
     );
   return [...new Set(logs.map((l) => l.exerciseId))];
 }
 
-async function getLastLog(exerciseId: number) {
+export async function getLastLog(exerciseId: number) {
   const [log] = await db
     .select()
     .from(sessionLogsTable)
     .where(eq(sessionLogsTable.exerciseId, exerciseId))
-    .orderBy(sql`${sessionLogsTable.loggedAt} DESC`)
+    .orderBy(desc(sessionLogsTable.loggedAt))
     .limit(1);
   return log ?? null;
 }
@@ -163,21 +160,19 @@ export async function generateWorkout(params: {
   difficultyLevel: string;
   equipment: string[];
   scheduledDate?: string;
+  sessionUsedIds?: Set<number>;
 }) {
-  const { splitType, splitVariant, difficultyLevel, equipment, scheduledDate } = params;
+  const { splitType, splitVariant, difficultyLevel, equipment, scheduledDate, sessionUsedIds } = params;
 
   const isCore = splitVariant === "Core";
   let layoutKey = splitType;
-  if (isCore && ["Lower", "Legs"].includes(splitType)) {
-    layoutKey = `${splitType}_Core`;
-  } else if (isCore && splitType === "Upper") {
-    layoutKey = "Upper_Core";
-  }
+  if (isCore && ["Lower", "Legs"].includes(splitType)) layoutKey = `${splitType}_Core`;
+  else if (isCore && splitType === "Upper") layoutKey = "Upper_Core";
 
   const layout = SPLIT_LAYOUTS[layoutKey] ?? SPLIT_LAYOUTS[splitType];
   if (!layout) throw new Error(`Unknown split: ${splitType}`);
 
-  const today = new Date();
+  const today = scheduledDate ? new Date(scheduledDate) : new Date();
   const dayOfWeek = today.getDay();
   const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
   const weekStart = new Date(today);
@@ -185,7 +180,8 @@ export async function generateWorkout(params: {
   const weekStartStr = weekStart.toISOString().split("T")[0];
 
   const weeklyUsed = await getWeeklyUsedExerciseIds(weekStartStr);
-  const usedIds = new Set<number>(weeklyUsed);
+  const usedIds = sessionUsedIds ?? new Set<number>(weeklyUsed);
+  weeklyUsed.forEach(id => usedIds.add(id));
 
   const diffCond = difficultyFilter(difficultyLevel);
   const equipCond = equipmentFilter(equipment);
@@ -198,12 +194,12 @@ export async function generateWorkout(params: {
   }
 
   const compoundPool = await getPool(layout.compound);
-  const [compoundEx] = pickRandom(compoundPool, usedIds, 1);
+  const compoundEx = pickRandom(compoundPool, usedIds);
 
   let compound2Ex: Exercise | undefined;
   if (layout.compound2) {
-    const compound2Pool = await getPool(layout.compound2);
-    [compound2Ex] = pickRandom(compound2Pool, usedIds, 1);
+    const pool2 = await getPool(layout.compound2);
+    compound2Ex = pickRandom(pool2, usedIds);
   }
 
   const circuits: { circuitNumber: number; exercises: { exercise: Exercise; lastLog: Awaited<ReturnType<typeof getLastLog>>; suggestedSets: number; suggestedReps: number }[] }[] = [];
@@ -213,17 +209,16 @@ export async function generateWorkout(params: {
     const circuitExercises = [];
     for (const slot of circuit.slots) {
       const pool = await getPool(slot);
-      const [ex] = pickRandom(pool, usedIds, 1);
+      const ex = pickRandom(pool, usedIds);
       if (ex) {
         const lastLog = await getLastLog(ex.id);
-        circuitExercises.push({ exercise: ex, lastLog, suggestedSets: 3, suggestedReps: 12 });
+        circuitExercises.push({ exercise: ex, lastLog, suggestedSets: 3, suggestedReps: 8 });
       }
     }
     circuits.push({ circuitNumber: i + 1, exercises: circuitExercises });
   }
 
   const compoundLastLog = compoundEx ? await getLastLog(compoundEx.id) : null;
-
   const result: {
     splitType: string;
     splitVariant: string;
@@ -240,9 +235,28 @@ export async function generateWorkout(params: {
   };
 
   if (compound2Ex) {
-    const compound2LastLog = await getLastLog(compound2Ex.id);
-    result.compound2 = { exercise: compound2Ex, lastLog: compound2LastLog, suggestedSets: 4, suggestedReps: 8 };
+    const c2LastLog = await getLastLog(compound2Ex.id);
+    result.compound2 = { exercise: compound2Ex, lastLog: c2LastLog, suggestedSets: 4, suggestedReps: 8 };
   }
 
   return result;
+}
+
+// Generate dates spread across a period
+export function getPlanDates(period: "daily" | "weekly" | "monthly", startDate: string, cadence: number): string[] {
+  const start = new Date(startDate);
+  if (period === "daily") return [startDate];
+
+  const totalDays = period === "weekly" ? 7 : 30;
+  const count = period === "weekly" ? cadence : cadence * 4;
+  const dates: string[] = [];
+
+  for (let i = 0; i < count; i++) {
+    const d = new Date(start);
+    const offset = Math.floor((i * totalDays) / count);
+    d.setDate(start.getDate() + offset);
+    dates.push(d.toISOString().split("T")[0]);
+  }
+
+  return dates;
 }

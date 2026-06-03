@@ -16,5 +16,6 @@ export interface SessionLogWithExercise {
   reps: number;
   weightUsed?: number;
   notes?: string;
+  isCompleted: boolean;
   loggedAt: Date;
 }

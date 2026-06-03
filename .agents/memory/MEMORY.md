@@ -1,2 +1,6 @@
 - [Workout generator split layout](workout-generator-splits.md) — split layouts are in workoutGenerator.ts as SPLIT_LAYOUTS map; Core variants use `${splitType}_Core` key pattern
 - [Exercise seeding](exercise-seeding.md) — 120 exercises in scripts/src/seed.ts; idempotent; date-fns was added manually to mobile package after design subagent ran
+- [Native date picker unavailable](native-date-picker.md) — @react-native-community/datetimepicker is not installed; use pure RN prev/next day buttons with date-fns addDays/subDays instead
+- [KeyboardAwareScrollViewCompat missing](keyboard-aware-compat.md) — this component does not exist; use KeyboardAvoidingView + ScrollView from react-native instead
+- [Generate endpoint returns PlannedSession array](generate-endpoint.md) — POST /workouts/generate now returns PlannedSession[]; creates DB session rows with workoutPlanJson stored; hook is useGenerateWorkoutPlan (not useGenerateWorkout)
+- [XP gamification system](xp-system.md) — +10 XP/+2 coins per exercise, +50 XP/+10 coins per workout; level = floor(totalXp/100)+1; hooks: useCompleteWorkout, useCompleteExercise

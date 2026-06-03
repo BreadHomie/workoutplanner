@@ -1,4 +1,4 @@
-import { pgTable, serial, text, timestamp } from "drizzle-orm/pg-core";
+import { boolean, pgTable, serial, text, timestamp } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -8,6 +8,9 @@ export const workoutSessionsTable = pgTable("workout_sessions", {
   splitVariant: text("split_variant").notNull().default("Standard"),
   scheduledDate: text("scheduled_date"),
   completedAt: timestamp("completed_at", { withTimezone: true }),
+  isCompleted: boolean("is_completed").notNull().default(false),
+  photoUri: text("photo_uri"),
+  workoutPlanJson: text("workout_plan_json"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

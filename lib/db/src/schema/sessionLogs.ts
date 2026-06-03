@@ -1,4 +1,4 @@
-import { integer, pgTable, real, serial, text, timestamp } from "drizzle-orm/pg-core";
+import { boolean, integer, pgTable, real, serial, text, timestamp } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { workoutSessionsTable } from "./workoutSessions";
@@ -12,6 +12,7 @@ export const sessionLogsTable = pgTable("session_logs", {
   reps: integer("reps").notNull(),
   weightUsed: real("weight_used"),
   notes: text("notes"),
+  isCompleted: boolean("is_completed").notNull().default(false),
   loggedAt: timestamp("logged_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

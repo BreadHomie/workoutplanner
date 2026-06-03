@@ -5,14 +5,19 @@
  * Glide Fitness App API
  * OpenAPI spec version: 0.1.0
  */
+import type { GeneratedWorkout } from './generatedWorkout';
 import type { SessionLogWithExercise } from './sessionLogWithExercise';
 
-export interface WorkoutSessionDetail {
+export interface PlannedSession {
   id: number;
   splitType: string;
   splitVariant: string;
   scheduledDate?: string;
   completedAt?: Date;
+  isCompleted: boolean;
+  photoUri?: string;
   createdAt: Date;
+  workoutPlan: GeneratedWorkout;
   logs: SessionLogWithExercise[];
+  logCount: number;
 }

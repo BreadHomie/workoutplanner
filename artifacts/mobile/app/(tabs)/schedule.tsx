@@ -1,28 +1,11 @@
-import { useGetSchedule, useCreateScheduleEntry, useDeleteScheduleEntry, CreateScheduleEntryInputSplitType, CreateScheduleEntryInputSplitVariant } from "@workspace/api-client-react";
-import { addDays, format, startOfWeek } from "date-fns";
-import React, { useState } from "react";
+import { useGetSchedule, useSaveScheduleBulk } from "@workspace/api-client-react";
+import { format, startOfMonth, getDaysInMonth, getDay, isSameDay, isSameMonth, parseISO, addMonths, subMonths } from "date-fns";
+import React, { useState, useEffect } from "react";
 import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-
-import { Button } from "@/components/Button";
-import { Select } from "@/components/Select";
-import { useColors } from "@/hooks/useColors";
 import { Feather } from "@expo/vector-icons";
 import { useQueryClient } from "@tanstack/react-query";
-
-const SPLIT_OPTIONS = [
-  { label: "Full Body", value: "Full Body" },
-  { label: "Upper", value: "Upper" },
-  { label: "Lower", value: "Lower" },
-  { label: "Push", value: "Push" },
-  { label: "Pull", value: "Pull" },
-  { label: "Legs", value: "Legs" },
-];
-
-const VARIANT_OPTIONS = [
-  { label: "Standard", value: "Standard" },
-  { label: "Core", value: "Core" },
-];
+import { useColors } from "@/hooks/useColors";
 
 export default function ScheduleScreen() {
   const colors = useColors();
@@ -30,42 +13,74 @@ export default function ScheduleScreen() {
   const queryClient = useQueryClient();
 
   const { data: schedule, isLoading } = useGetSchedule();
-  const createEntry = useCreateScheduleEntry();
-  const deleteEntry = useDeleteScheduleEntry();
+  const saveScheduleBulk = useSaveScheduleBulk();
 
-  const [selectedDate, setSelectedDate] = useState<Date>(new Date());
-  const [split, setSplit] = useState<string>("Full Body");
-  const [variant, setVariant] = useState<string>("Standard");
+  const [currentMonth, setCurrentMonth] = useState(new Date());
+  const [selectedDates, setSelectedDates] = useState<Set<string>>(new Set());
 
-  const startOfCurrentWeek = startOfWeek(new Date(), { weekStartsOn: 1 });
-  const weekDays = Array.from({ length: 7 }).map((_, i) => addDays(startOfCurrentWeek, i));
+  // Initialize selected dates when schedule data loads or month changes
+  useEffect(() => {
+    if (schedule) {
+      const currentMonthStr = format(currentMonth, "yyyy-MM");
+      const initialDates = new Set<string>();
+      schedule.forEach((entry: any) => {
+        const dateStr = format(new Date(entry.scheduledDate), "yyyy-MM-dd");
+        if (dateStr.startsWith(currentMonthStr)) {
+          initialDates.add(dateStr);
+        }
+      });
+      setSelectedDates(initialDates);
+    }
+  }, [schedule, currentMonth]);
 
-  const handleAdd = () => {
-    createEntry.mutate(
+  const toggleDate = (dateStr: string) => {
+    setSelectedDates(prev => {
+      const next = new Set(prev);
+      if (next.has(dateStr)) {
+        next.delete(dateStr);
+      } else {
+        next.add(dateStr);
+      }
+      return next;
+    });
+  };
+
+  const handleSave = () => {
+    saveScheduleBulk.mutate(
       {
         data: {
-          scheduledDate: selectedDate.toISOString(),
-          splitType: split as CreateScheduleEntryInputSplitType,
-          splitVariant: variant as CreateScheduleEntryInputSplitVariant,
-        },
+          yearMonth: format(currentMonth, "yyyy-MM"),
+          dates: [...selectedDates].sort()
+        }
       },
       {
         onSuccess: () => {
+          Alert.alert("Saved", "Schedule saved successfully");
           queryClient.invalidateQueries({ queryKey: ["/api/schedule"] });
-        },
+        }
       }
     );
   };
 
-  const handleDelete = (id: number) => {
-    deleteEntry.mutate(
-      { entryId: id },
-      {
-        onSuccess: () => {
-          queryClient.invalidateQueries({ queryKey: ["/api/schedule"] });
-        },
-      }
-    );
+  const generateCalendarGrid = () => {
+    const monthStart = startOfMonth(currentMonth);
+    const daysInMonth = getDaysInMonth(currentMonth);
+    const startOffset = getDay(monthStart); // 0 = Sun
+    
+    const days = [];
+    // Blank days before start
+    for (let i = 0; i < startOffset; i++) {
+      days.push(null);
+    }
+    // Actual days
+    for (let i = 1; i <= daysInMonth; i++) {
+      days.push(new Date(currentMonth.getFullYear(), currentMonth.getMonth(), i));
+    }
+    // Pad end
+    while (days.length % 7 !== 0) {
+      days.push(null);
+    }
+    return days;
   };
 
   if (isLoading) {
@@ -76,185 +91,106 @@ export default function ScheduleScreen() {
     );
   }
 
-  const showVariant = split === "Lower" || split === "Legs";
+  const calendarDays = generateCalendarGrid();
+  const weekDayHeaders = ["S", "M", "T", "W", "T", "F", "S"];
 
   return (
-    <ScrollView
-      style={{ backgroundColor: colors.background }}
-      contentContainerStyle={{
-        paddingTop: insets.top + 24,
-        paddingBottom: 100,
-      }}
-    >
-      <Text style={[styles.header, { color: colors.foreground, paddingHorizontal: 20 }]}>
-        Schedule
-      </Text>
+    <ScrollView style={{ backgroundColor: colors.background }} contentContainerStyle={{ paddingTop: insets.top + 24, paddingBottom: 100 }}>
+      <Text style={[styles.header, { color: colors.foreground, paddingHorizontal: 20 }]}>Schedule</Text>
 
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.calendarStrip}
-      >
-        {weekDays.map((date, i) => {
-          const isSelected = format(date, "yyyy-MM-dd") === format(selectedDate, "yyyy-MM-dd");
-          const isToday = format(date, "yyyy-MM-dd") === format(new Date(), "yyyy-MM-dd");
+      <View style={styles.monthNav}>
+        <TouchableOpacity onPress={() => setCurrentMonth(prev => subMonths(prev, 1))} style={styles.navBtn}>
+          <Feather name="chevron-left" size={24} color={colors.foreground} />
+        </TouchableOpacity>
+        <Text style={[styles.monthText, { color: colors.foreground }]}>{format(currentMonth, "MMMM yyyy")}</Text>
+        <TouchableOpacity onPress={() => setCurrentMonth(prev => addMonths(prev, 1))} style={styles.navBtn}>
+          <Feather name="chevron-right" size={24} color={colors.foreground} />
+        </TouchableOpacity>
+      </View>
 
-          return (
-            <TouchableOpacity
-              key={i}
-              activeOpacity={0.7}
-              onPress={() => setSelectedDate(date)}
-              style={[
-                styles.dayCard,
-                {
-                  backgroundColor: isSelected ? colors.primary : colors.card,
-                  borderColor: isToday && !isSelected ? colors.primary : "transparent",
-                  borderWidth: isToday && !isSelected ? 1 : 0,
-                },
-              ]}
-            >
-              <Text
-                style={[
-                  styles.dayName,
-                  { color: isSelected ? colors.primaryForeground : colors.mutedForeground },
-                ]}
-              >
-                {format(date, "E")}
-              </Text>
-              <Text
-                style={[
-                  styles.dayNumber,
-                  { color: isSelected ? colors.primaryForeground : colors.foreground },
-                ]}
-              >
-                {format(date, "d")}
-              </Text>
-            </TouchableOpacity>
-          );
-        })}
-      </ScrollView>
-
-      <View style={styles.content}>
-        <View style={styles.addSection}>
-          <Text style={[styles.sectionTitle, { color: colors.foreground }]}>
-            Plan for {format(selectedDate, "MMM d")}
-          </Text>
-
-          <Select label="Split" options={SPLIT_OPTIONS} value={split} onChange={setSplit} />
-
-          {showVariant && (
-            <Select label="Variant" options={VARIANT_OPTIONS} value={variant} onChange={setVariant} />
-          )}
-
-          <Button
-            title="Schedule Workout"
-            icon="calendar"
-            onPress={handleAdd}
-            loading={createEntry.isPending}
-            style={styles.addBtn}
-          />
+      <View style={styles.calendarContainer}>
+        <View style={styles.weekHeaders}>
+          {weekDayHeaders.map((day, i) => (
+            <Text key={i} style={[styles.weekDayText, { color: colors.mutedForeground }]}>{day}</Text>
+          ))}
         </View>
 
-        <Text style={[styles.sectionTitle, { color: colors.foreground, marginTop: 32 }]}>
-          Upcoming Workouts
-        </Text>
+        <View style={styles.daysGrid}>
+          {calendarDays.map((date, i) => {
+            if (!date) {
+              return <View key={i} style={styles.dayCellEmpty} />;
+            }
 
-        {schedule && schedule.length > 0 ? (
-          schedule.map((entry) => (
-            <View
-              key={entry.id}
-              style={[
-                styles.entryCard,
-                { backgroundColor: colors.card, borderColor: colors.border },
-              ]}
-            >
-              <View>
-                <Text style={[styles.entryDate, { color: colors.foreground }]}>
-                  {format(new Date(entry.scheduledDate), "EEEE, MMM d")}
+            const dateStr = format(date, "yyyy-MM-dd");
+            const isSelected = selectedDates.has(dateStr);
+            const isToday = format(date, "yyyy-MM-dd") === format(new Date(), "yyyy-MM-dd");
+            const hasExisting = schedule?.some((entry: any) => format(new Date(entry.scheduledDate), "yyyy-MM-dd") === dateStr);
+
+            return (
+              <TouchableOpacity
+                key={i}
+                onPress={() => toggleDate(dateStr)}
+                style={[
+                  styles.dayCell,
+                  {
+                    backgroundColor: isSelected ? colors.primary : colors.card,
+                    borderColor: isToday && !isSelected ? colors.primary : "transparent",
+                    borderWidth: isToday && !isSelected ? 1 : 0
+                  }
+                ]}
+              >
+                <Text style={[
+                  styles.dayText, 
+                  { color: isSelected ? colors.primaryForeground : colors.foreground }
+                ]}>
+                  {format(date, "d")}
                 </Text>
-                <Text style={[styles.entrySplit, { color: colors.primary }]}>
-                  {entry.splitType} {entry.splitVariant !== "Standard" ? `+ ${entry.splitVariant}` : ""}
-                </Text>
-              </View>
-              <TouchableOpacity onPress={() => handleDelete(entry.id)} style={styles.deleteBtn}>
-                <Feather name="trash-2" size={20} color={colors.destructive} />
+                {hasExisting && !isSelected && (
+                  <View style={[styles.dot, { backgroundColor: colors.primary }]} />
+                )}
               </TouchableOpacity>
-            </View>
-          ))
-        ) : (
-          <Text style={{ color: colors.mutedForeground }}>No scheduled workouts.</Text>
-        )}
+            );
+          })}
+        </View>
+      </View>
+
+      <View style={styles.footer}>
+        <Text style={[styles.selectedText, { color: colors.mutedForeground }]}>
+          {selectedDates.size} days selected
+        </Text>
+        
+        <TouchableOpacity
+          style={[styles.saveBtn, { backgroundColor: colors.primary }]}
+          onPress={handleSave}
+          disabled={saveScheduleBulk.isPending}
+        >
+          {saveScheduleBulk.isPending ? (
+            <ActivityIndicator color={colors.primaryForeground} />
+          ) : (
+            <Text style={[styles.saveBtnText, { color: colors.primaryForeground }]}>Save Plan</Text>
+          )}
+        </TouchableOpacity>
       </View>
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  center: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  header: {
-    fontSize: 32,
-    fontFamily: "Inter_700Bold",
-    marginBottom: 24,
-    letterSpacing: -1,
-  },
-  calendarStrip: {
-    paddingHorizontal: 20,
-    gap: 12,
-    marginBottom: 32,
-  },
-  dayCard: {
-    width: 60,
-    height: 72,
-    borderRadius: 16,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  dayName: {
-    fontSize: 12,
-    fontFamily: "Inter_600SemiBold",
-    marginBottom: 4,
-  },
-  dayNumber: {
-    fontSize: 18,
-    fontFamily: "Inter_700Bold",
-  },
-  content: {
-    paddingHorizontal: 20,
-  },
-  addSection: {
-    marginBottom: 24,
-  },
-  sectionTitle: {
-    fontSize: 20,
-    fontFamily: "Inter_600SemiBold",
-    marginBottom: 16,
-  },
-  addBtn: {
-    marginTop: 16,
-  },
-  entryCard: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    padding: 16,
-    borderRadius: 12,
-    borderWidth: 1,
-    marginBottom: 12,
-  },
-  entryDate: {
-    fontSize: 16,
-    fontFamily: "Inter_600SemiBold",
-    marginBottom: 4,
-  },
-  entrySplit: {
-    fontSize: 14,
-    fontFamily: "Inter_500Medium",
-  },
-  deleteBtn: {
-    padding: 8,
-  },
+  center: { flex: 1, justifyContent: "center", alignItems: "center" },
+  header: { fontSize: 32, fontFamily: "Inter_700Bold", marginBottom: 24, letterSpacing: -1 },
+  monthNav: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 20, marginBottom: 24 },
+  navBtn: { padding: 8 },
+  monthText: { fontSize: 20, fontFamily: "Inter_600SemiBold" },
+  calendarContainer: { paddingHorizontal: 12 },
+  weekHeaders: { flexDirection: "row", justifyContent: "space-around", marginBottom: 12 },
+  weekDayText: { width: 40, textAlign: "center", fontSize: 12, fontFamily: "Inter_600SemiBold" },
+  daysGrid: { flexDirection: "row", flexWrap: "wrap", justifyContent: "space-around", gap: 8 },
+  dayCellEmpty: { width: 40, height: 40 },
+  dayCell: { width: 40, height: 40, borderRadius: 8, justifyContent: "center", alignItems: "center", marginBottom: 8 },
+  dayText: { fontSize: 16, fontFamily: "Inter_500Medium" },
+  dot: { width: 4, height: 4, borderRadius: 2, position: "absolute", bottom: 4 },
+  footer: { paddingHorizontal: 20, marginTop: 40, alignItems: "center" },
+  selectedText: { fontSize: 14, fontFamily: "Inter_500Medium", marginBottom: 16 },
+  saveBtn: { width: "100%", height: 56, borderRadius: 16, justifyContent: "center", alignItems: "center" },
+  saveBtnText: { fontSize: 18, fontFamily: "Inter_700Bold" },
 });

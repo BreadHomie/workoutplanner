@@ -5,15 +5,12 @@
  * Glide Fitness App API
  * OpenAPI spec version: 0.1.0
  */
-import type { ScheduleEntrySplitType } from './scheduleEntrySplitType';
-import type { ScheduleEntrySplitVariant } from './scheduleEntrySplitVariant';
 
 export interface ScheduleEntry {
   id: number;
   scheduledDate: Date;
-  splitType: ScheduleEntrySplitType;
-  splitVariant: ScheduleEntrySplitVariant;
-  /** Linked session if completed */
+  splitType: string;
+  splitVariant: string;
   sessionId?: number;
   createdAt: Date;
 }

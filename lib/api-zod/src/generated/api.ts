@@ -23,8 +23,11 @@ export const GetProfileResponse = zod.object({
   "id": zod.number(),
   "difficultyLevel": zod.enum(['Beginner', 'Intermediate', 'Advanced']),
   "equipment": zod.array(zod.string()),
-  "targetCadence": zod.number().describe('Target workouts per week'),
-  "preferredSplit": zod.enum(['Full Body', 'Upper/Lower', 'Upper/Lower + Core', 'Push/Pull/Legs', 'Push/Pull/Legs + Core']),
+  "targetCadence": zod.number(),
+  "preferredSplit": zod.string(),
+  "totalXp": zod.number(),
+  "totalCoins": zod.number(),
+  "level": zod.number(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 })
@@ -37,15 +40,18 @@ export const UpdateProfileBody = zod.object({
   "difficultyLevel": zod.enum(['Beginner', 'Intermediate', 'Advanced']).optional(),
   "equipment": zod.array(zod.string()).optional(),
   "targetCadence": zod.number().optional(),
-  "preferredSplit": zod.enum(['Full Body', 'Upper/Lower', 'Upper/Lower + Core', 'Push/Pull/Legs', 'Push/Pull/Legs + Core']).optional()
+  "preferredSplit": zod.string().optional()
 })
 
 export const UpdateProfileResponse = zod.object({
   "id": zod.number(),
   "difficultyLevel": zod.enum(['Beginner', 'Intermediate', 'Advanced']),
   "equipment": zod.array(zod.string()),
-  "targetCadence": zod.number().describe('Target workouts per week'),
-  "preferredSplit": zod.enum(['Full Body', 'Upper/Lower', 'Upper/Lower + Core', 'Push/Pull/Legs', 'Push/Pull/Legs + Core']),
+  "targetCadence": zod.number(),
+  "preferredSplit": zod.string(),
+  "totalXp": zod.number(),
+  "totalCoins": zod.number(),
+  "level": zod.number(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 })
@@ -79,17 +85,27 @@ export const ListExercisesResponse = zod.array(ListExercisesResponseItem)
 
 
 /**
- * @summary Generate a workout based on split and preferences
+ * @summary Generate a workout plan (single, weekly, or monthly) and persist sessions
  */
-export const GenerateWorkoutBody = zod.object({
-  "splitType": zod.enum(['Full Body', 'Upper', 'Lower', 'Push', 'Pull', 'Legs']),
-  "splitVariant": zod.enum(['Standard', 'Core']).optional().describe('Standard or Core variant (e.g. Lower + Core)'),
+export const GenerateWorkoutPlanBody = zod.object({
+  "period": zod.enum(['daily', 'weekly', 'monthly']),
+  "startDate": zod.coerce.date().describe('ISO date (YYYY-MM-DD) for when the plan starts'),
   "difficultyLevel": zod.enum(['Beginner', 'Intermediate', 'Advanced']),
   "equipment": zod.array(zod.string()),
-  "scheduledDate": zod.coerce.date().optional().describe('ISO date for the workout (used to check weekly non-repetition)')
+  "preferredSplit": zod.string().describe('Program type e.g. \"Full Body\", \"Push\/Pull\/Legs\"'),
+  "targetCadence": zod.number().describe('Workouts per week')
 })
 
-export const GenerateWorkoutResponse = zod.object({
+export const GenerateWorkoutPlanResponseItem = zod.object({
+  "id": zod.number(),
+  "splitType": zod.string(),
+  "splitVariant": zod.string(),
+  "scheduledDate": zod.string().optional(),
+  "completedAt": zod.coerce.date().optional(),
+  "isCompleted": zod.boolean(),
+  "photoUri": zod.string().optional(),
+  "createdAt": zod.coerce.date(),
+  "workoutPlan": zod.object({
   "splitType": zod.string(),
   "splitVariant": zod.string(),
   "compound": zod.object({
@@ -113,13 +129,43 @@ export const GenerateWorkoutResponse = zod.object({
   "exerciseId": zod.number(),
   "sets": zod.number(),
   "reps": zod.number(),
-  "weightUsed": zod.number().optional().describe('Weight in lbs\/kg'),
+  "weightUsed": zod.number().optional(),
   "notes": zod.string().optional(),
+  "isCompleted": zod.boolean(),
   "loggedAt": zod.coerce.date()
 }).optional(),
   "suggestedSets": zod.number(),
   "suggestedReps": zod.number()
 }),
+  "compound2": zod.object({
+  "exercise": zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "equipment": zod.string(),
+  "difficulty": zod.enum(['Beginner', 'Intermediate', 'Advanced']),
+  "isCompound": zod.boolean(),
+  "hitChest": zod.boolean(),
+  "hitBack": zod.boolean(),
+  "hitLegs": zod.boolean(),
+  "hitCore": zod.boolean(),
+  "hitArm": zod.boolean(),
+  "hitShoulder": zod.boolean(),
+  "classification": zod.string()
+}),
+  "lastLog": zod.object({
+  "id": zod.number(),
+  "sessionId": zod.number(),
+  "exerciseId": zod.number(),
+  "sets": zod.number(),
+  "reps": zod.number(),
+  "weightUsed": zod.number().optional(),
+  "notes": zod.string().optional(),
+  "isCompleted": zod.boolean(),
+  "loggedAt": zod.coerce.date()
+}).optional(),
+  "suggestedSets": zod.number(),
+  "suggestedReps": zod.number()
+}).optional(),
   "circuits": zod.array(zod.object({
   "circuitNumber": zod.number(),
   "exercises": zod.array(zod.object({
@@ -143,64 +189,16 @@ export const GenerateWorkoutResponse = zod.object({
   "exerciseId": zod.number(),
   "sets": zod.number(),
   "reps": zod.number(),
-  "weightUsed": zod.number().optional().describe('Weight in lbs\/kg'),
+  "weightUsed": zod.number().optional(),
   "notes": zod.string().optional(),
+  "isCompleted": zod.boolean(),
   "loggedAt": zod.coerce.date()
 }).optional(),
   "suggestedSets": zod.number(),
   "suggestedReps": zod.number()
 }))
-})),
-  "scheduledDate": zod.string().optional()
-})
-
-
-/**
- * @summary List workout sessions (recent history)
- */
-export const listSessionsQueryLimitDefault = 20;
-
-export const ListSessionsQueryParams = zod.object({
-  "limit": zod.coerce.number().default(listSessionsQueryLimitDefault)
-})
-
-export const ListSessionsResponseItem = zod.object({
-  "id": zod.number(),
-  "splitType": zod.string(),
-  "splitVariant": zod.string(),
-  "scheduledDate": zod.string().optional(),
-  "completedAt": zod.coerce.date().optional(),
-  "createdAt": zod.coerce.date(),
-  "logCount": zod.number()
-})
-export const ListSessionsResponse = zod.array(ListSessionsResponseItem)
-
-
-/**
- * @summary Create a new workout session log
- */
-export const CreateSessionBody = zod.object({
-  "splitType": zod.string(),
-  "splitVariant": zod.string(),
-  "scheduledDate": zod.string().optional(),
-  "completedAt": zod.coerce.date().optional()
-})
-
-
-/**
- * @summary Get a specific session with all logs
- */
-export const GetSessionParams = zod.object({
-  "sessionId": zod.coerce.number()
-})
-
-export const GetSessionResponse = zod.object({
-  "id": zod.number(),
-  "splitType": zod.string(),
-  "splitVariant": zod.string(),
-  "scheduledDate": zod.string().optional(),
-  "completedAt": zod.coerce.date().optional(),
-  "createdAt": zod.coerce.date(),
+}))
+}),
   "logs": zod.array(zod.object({
   "id": zod.number(),
   "sessionId": zod.number(),
@@ -223,13 +221,232 @@ export const GetSessionResponse = zod.object({
   "reps": zod.number(),
   "weightUsed": zod.number().optional(),
   "notes": zod.string().optional(),
+  "isCompleted": zod.boolean(),
   "loggedAt": zod.coerce.date()
-}))
+})),
+  "logCount": zod.number()
+})
+export const GenerateWorkoutPlanResponse = zod.array(GenerateWorkoutPlanResponseItem)
+
+
+/**
+ * @summary List workout sessions
+ */
+export const listSessionsQueryLimitDefault = 50;
+
+export const ListSessionsQueryParams = zod.object({
+  "limit": zod.coerce.number().default(listSessionsQueryLimitDefault)
+})
+
+export const ListSessionsResponseItem = zod.object({
+  "id": zod.number(),
+  "splitType": zod.string(),
+  "splitVariant": zod.string(),
+  "scheduledDate": zod.string().optional(),
+  "completedAt": zod.coerce.date().optional(),
+  "isCompleted": zod.boolean(),
+  "photoUri": zod.string().optional(),
+  "logCount": zod.number(),
+  "createdAt": zod.coerce.date()
+})
+export const ListSessionsResponse = zod.array(ListSessionsResponseItem)
+
+
+/**
+ * @summary Create a new workout session log
+ */
+export const CreateSessionBody = zod.object({
+  "splitType": zod.string(),
+  "splitVariant": zod.string(),
+  "scheduledDate": zod.string().optional(),
+  "completedAt": zod.coerce.date().optional()
 })
 
 
 /**
- * @summary Add exercise log entry to a session
+ * @summary Get a specific session with all logs and workout plan
+ */
+export const GetSessionParams = zod.object({
+  "sessionId": zod.coerce.number()
+})
+
+export const GetSessionResponse = zod.object({
+  "id": zod.number(),
+  "splitType": zod.string(),
+  "splitVariant": zod.string(),
+  "scheduledDate": zod.string().optional(),
+  "completedAt": zod.coerce.date().optional(),
+  "isCompleted": zod.boolean(),
+  "photoUri": zod.string().optional(),
+  "createdAt": zod.coerce.date(),
+  "workoutPlan": zod.object({
+  "splitType": zod.string(),
+  "splitVariant": zod.string(),
+  "compound": zod.object({
+  "exercise": zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "equipment": zod.string(),
+  "difficulty": zod.enum(['Beginner', 'Intermediate', 'Advanced']),
+  "isCompound": zod.boolean(),
+  "hitChest": zod.boolean(),
+  "hitBack": zod.boolean(),
+  "hitLegs": zod.boolean(),
+  "hitCore": zod.boolean(),
+  "hitArm": zod.boolean(),
+  "hitShoulder": zod.boolean(),
+  "classification": zod.string()
+}),
+  "lastLog": zod.object({
+  "id": zod.number(),
+  "sessionId": zod.number(),
+  "exerciseId": zod.number(),
+  "sets": zod.number(),
+  "reps": zod.number(),
+  "weightUsed": zod.number().optional(),
+  "notes": zod.string().optional(),
+  "isCompleted": zod.boolean(),
+  "loggedAt": zod.coerce.date()
+}).optional(),
+  "suggestedSets": zod.number(),
+  "suggestedReps": zod.number()
+}),
+  "compound2": zod.object({
+  "exercise": zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "equipment": zod.string(),
+  "difficulty": zod.enum(['Beginner', 'Intermediate', 'Advanced']),
+  "isCompound": zod.boolean(),
+  "hitChest": zod.boolean(),
+  "hitBack": zod.boolean(),
+  "hitLegs": zod.boolean(),
+  "hitCore": zod.boolean(),
+  "hitArm": zod.boolean(),
+  "hitShoulder": zod.boolean(),
+  "classification": zod.string()
+}),
+  "lastLog": zod.object({
+  "id": zod.number(),
+  "sessionId": zod.number(),
+  "exerciseId": zod.number(),
+  "sets": zod.number(),
+  "reps": zod.number(),
+  "weightUsed": zod.number().optional(),
+  "notes": zod.string().optional(),
+  "isCompleted": zod.boolean(),
+  "loggedAt": zod.coerce.date()
+}).optional(),
+  "suggestedSets": zod.number(),
+  "suggestedReps": zod.number()
+}).optional(),
+  "circuits": zod.array(zod.object({
+  "circuitNumber": zod.number(),
+  "exercises": zod.array(zod.object({
+  "exercise": zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "equipment": zod.string(),
+  "difficulty": zod.enum(['Beginner', 'Intermediate', 'Advanced']),
+  "isCompound": zod.boolean(),
+  "hitChest": zod.boolean(),
+  "hitBack": zod.boolean(),
+  "hitLegs": zod.boolean(),
+  "hitCore": zod.boolean(),
+  "hitArm": zod.boolean(),
+  "hitShoulder": zod.boolean(),
+  "classification": zod.string()
+}),
+  "lastLog": zod.object({
+  "id": zod.number(),
+  "sessionId": zod.number(),
+  "exerciseId": zod.number(),
+  "sets": zod.number(),
+  "reps": zod.number(),
+  "weightUsed": zod.number().optional(),
+  "notes": zod.string().optional(),
+  "isCompleted": zod.boolean(),
+  "loggedAt": zod.coerce.date()
+}).optional(),
+  "suggestedSets": zod.number(),
+  "suggestedReps": zod.number()
+}))
+}))
+}),
+  "logs": zod.array(zod.object({
+  "id": zod.number(),
+  "sessionId": zod.number(),
+  "exerciseId": zod.number(),
+  "exercise": zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "equipment": zod.string(),
+  "difficulty": zod.enum(['Beginner', 'Intermediate', 'Advanced']),
+  "isCompound": zod.boolean(),
+  "hitChest": zod.boolean(),
+  "hitBack": zod.boolean(),
+  "hitLegs": zod.boolean(),
+  "hitCore": zod.boolean(),
+  "hitArm": zod.boolean(),
+  "hitShoulder": zod.boolean(),
+  "classification": zod.string()
+}),
+  "sets": zod.number(),
+  "reps": zod.number(),
+  "weightUsed": zod.number().optional(),
+  "notes": zod.string().optional(),
+  "isCompleted": zod.boolean(),
+  "loggedAt": zod.coerce.date()
+})),
+  "logCount": zod.number()
+})
+
+
+/**
+ * @summary Update session (photo, mark complete)
+ */
+export const UpdateSessionParams = zod.object({
+  "sessionId": zod.coerce.number()
+})
+
+export const UpdateSessionBody = zod.object({
+  "isCompleted": zod.boolean().optional(),
+  "photoUri": zod.string().optional(),
+  "completedAt": zod.coerce.date().optional()
+})
+
+export const UpdateSessionResponse = zod.object({
+  "id": zod.number(),
+  "splitType": zod.string(),
+  "splitVariant": zod.string(),
+  "scheduledDate": zod.string().optional(),
+  "completedAt": zod.coerce.date().optional(),
+  "isCompleted": zod.boolean(),
+  "photoUri": zod.string().optional(),
+  "logCount": zod.number(),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Mark workout complete and award XP + coins
+ */
+export const CompleteWorkoutParams = zod.object({
+  "sessionId": zod.coerce.number()
+})
+
+export const CompleteWorkoutResponse = zod.object({
+  "xpEarned": zod.number(),
+  "coinsEarned": zod.number(),
+  "totalXp": zod.number(),
+  "totalCoins": zod.number(),
+  "level": zod.number(),
+  "leveledUp": zod.boolean()
+})
+
+
+/**
+ * @summary Add or update an exercise log entry for a session
  */
 export const AddSessionLogParams = zod.object({
   "sessionId": zod.coerce.number()
@@ -240,12 +457,60 @@ export const AddSessionLogBody = zod.object({
   "sets": zod.number(),
   "reps": zod.number(),
   "weightUsed": zod.number().optional(),
-  "notes": zod.string().optional()
+  "notes": zod.string().optional(),
+  "isCompleted": zod.boolean().optional()
 })
 
 
 /**
- * @summary Get the last logged entry for an exercise (for progressive overload)
+ * @summary Update a specific log entry (weight, reps, isCompleted)
+ */
+export const UpdateSessionLogParams = zod.object({
+  "sessionId": zod.coerce.number(),
+  "logId": zod.coerce.number()
+})
+
+export const UpdateSessionLogBody = zod.object({
+  "sets": zod.number().optional(),
+  "reps": zod.number().optional(),
+  "weightUsed": zod.number().optional(),
+  "notes": zod.string().optional(),
+  "isCompleted": zod.boolean().optional()
+})
+
+export const UpdateSessionLogResponse = zod.object({
+  "id": zod.number(),
+  "sessionId": zod.number(),
+  "exerciseId": zod.number(),
+  "sets": zod.number(),
+  "reps": zod.number(),
+  "weightUsed": zod.number().optional(),
+  "notes": zod.string().optional(),
+  "isCompleted": zod.boolean(),
+  "loggedAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Mark exercise complete and award XP
+ */
+export const CompleteExerciseParams = zod.object({
+  "sessionId": zod.coerce.number(),
+  "logId": zod.coerce.number()
+})
+
+export const CompleteExerciseResponse = zod.object({
+  "xpEarned": zod.number(),
+  "coinsEarned": zod.number(),
+  "totalXp": zod.number(),
+  "totalCoins": zod.number(),
+  "level": zod.number(),
+  "leveledUp": zod.boolean()
+})
+
+
+/**
+ * @summary Get the last logged entry for an exercise
  */
 export const GetExerciseLastLogParams = zod.object({
   "exerciseId": zod.coerce.number()
@@ -257,34 +522,54 @@ export const GetExerciseLastLogResponse = zod.object({
   "exerciseId": zod.number(),
   "sets": zod.number(),
   "reps": zod.number(),
-  "weightUsed": zod.number().optional().describe('Weight in lbs\/kg'),
+  "weightUsed": zod.number().optional(),
   "notes": zod.string().optional(),
+  "isCompleted": zod.boolean(),
   "loggedAt": zod.coerce.date()
 })
 
 
 /**
- * @summary Get scheduled workout sessions for the current/next week
+ * @summary Get all scheduled workout days
  */
 export const GetScheduleResponseItem = zod.object({
   "id": zod.number(),
   "scheduledDate": zod.coerce.date(),
-  "splitType": zod.enum(['Full Body', 'Upper', 'Lower', 'Push', 'Pull', 'Legs']),
-  "splitVariant": zod.enum(['Standard', 'Core']),
-  "sessionId": zod.number().optional().describe('Linked session if completed'),
+  "splitType": zod.string(),
+  "splitVariant": zod.string(),
+  "sessionId": zod.number().optional(),
   "createdAt": zod.coerce.date()
 })
 export const GetScheduleResponse = zod.array(GetScheduleResponseItem)
 
 
 /**
- * @summary Create a scheduled workout entry
+ * @summary Create a scheduled workout day
  */
 export const CreateScheduleEntryBody = zod.object({
   "scheduledDate": zod.coerce.date(),
-  "splitType": zod.enum(['Full Body', 'Upper', 'Lower', 'Push', 'Pull', 'Legs']),
-  "splitVariant": zod.enum(['Standard', 'Core'])
+  "splitType": zod.string(),
+  "splitVariant": zod.string()
 })
+
+
+/**
+ * @summary Save a set of scheduled dates for the month (replaces existing for that month)
+ */
+export const SaveScheduleBulkBody = zod.object({
+  "yearMonth": zod.string().describe('Format: YYYY-MM — the month to replace schedule for'),
+  "dates": zod.array(zod.coerce.date()).describe('List of ISO dates the user plans to work out')
+})
+
+export const SaveScheduleBulkResponseItem = zod.object({
+  "id": zod.number(),
+  "scheduledDate": zod.coerce.date(),
+  "splitType": zod.string(),
+  "splitVariant": zod.string(),
+  "sessionId": zod.number().optional(),
+  "createdAt": zod.coerce.date()
+})
+export const SaveScheduleBulkResponse = zod.array(SaveScheduleBulkResponseItem)
 
 
 /**
@@ -296,13 +581,14 @@ export const DeleteScheduleEntryParams = zod.object({
 
 
 /**
- * @summary Get workout stats summary (total sessions, streak, this week count)
+ * @summary Get workout stats summary
  */
 export const GetStatsSummaryResponse = zod.object({
   "totalSessions": zod.number(),
   "currentStreak": zod.number(),
   "thisWeekCount": zod.number(),
-  "totalExercisesLogged": zod.number()
+  "totalExercisesLogged": zod.number(),
+  "completedSessions": zod.number()
 })
 
 

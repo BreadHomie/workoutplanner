@@ -6,14 +6,10 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface SessionLog {
-  id: number;
-  sessionId: number;
-  exerciseId: number;
-  sets: number;
-  reps: number;
+export interface UpdateSessionLogInput {
+  sets?: number;
+  reps?: number;
   weightUsed?: number;
   notes?: string;
-  isCompleted: boolean;
-  loggedAt: Date;
+  isCompleted?: boolean;
 }

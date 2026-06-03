@@ -18,24 +18,15 @@ export const UserProfileDifficultyLevel = {
   Advanced: 'Advanced',
 } as const;
 
-export type UserProfilePreferredSplit = typeof UserProfilePreferredSplit[keyof typeof UserProfilePreferredSplit];
-
-
-export const UserProfilePreferredSplit = {
-  Full_Body: 'Full Body',
-  'Upper/Lower': 'Upper/Lower',
-  'Upper/Lower_+_Core': 'Upper/Lower + Core',
-  'Push/Pull/Legs': 'Push/Pull/Legs',
-  'Push/Pull/Legs_+_Core': 'Push/Pull/Legs + Core',
-} as const;
-
 export interface UserProfile {
   id: number;
   difficultyLevel: UserProfileDifficultyLevel;
   equipment: string[];
-  /** Target workouts per week */
   targetCadence: number;
-  preferredSplit: UserProfilePreferredSplit;
+  preferredSplit: string;
+  totalXp: number;
+  totalCoins: number;
+  level: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -49,22 +40,11 @@ export const UpdateProfileInputDifficultyLevel = {
   Advanced: 'Advanced',
 } as const;
 
-export type UpdateProfileInputPreferredSplit = typeof UpdateProfileInputPreferredSplit[keyof typeof UpdateProfileInputPreferredSplit];
-
-
-export const UpdateProfileInputPreferredSplit = {
-  Full_Body: 'Full Body',
-  'Upper/Lower': 'Upper/Lower',
-  'Upper/Lower_+_Core': 'Upper/Lower + Core',
-  'Push/Pull/Legs': 'Push/Pull/Legs',
-  'Push/Pull/Legs_+_Core': 'Push/Pull/Legs + Core',
-} as const;
-
 export interface UpdateProfileInput {
   difficultyLevel?: UpdateProfileInputDifficultyLevel;
   equipment?: string[];
   targetCadence?: number;
-  preferredSplit?: UpdateProfileInputPreferredSplit;
+  preferredSplit?: string;
 }
 
 export type ExerciseDifficulty = typeof ExerciseDifficulty[keyof typeof ExerciseDifficulty];
@@ -91,46 +71,34 @@ export interface Exercise {
   classification: string;
 }
 
-export type GenerateWorkoutInputSplitType = typeof GenerateWorkoutInputSplitType[keyof typeof GenerateWorkoutInputSplitType];
+export type GeneratePlanInputPeriod = typeof GeneratePlanInputPeriod[keyof typeof GeneratePlanInputPeriod];
 
 
-export const GenerateWorkoutInputSplitType = {
-  Full_Body: 'Full Body',
-  Upper: 'Upper',
-  Lower: 'Lower',
-  Push: 'Push',
-  Pull: 'Pull',
-  Legs: 'Legs',
+export const GeneratePlanInputPeriod = {
+  daily: 'daily',
+  weekly: 'weekly',
+  monthly: 'monthly',
 } as const;
 
-/**
- * Standard or Core variant (e.g. Lower + Core)
- */
-export type GenerateWorkoutInputSplitVariant = typeof GenerateWorkoutInputSplitVariant[keyof typeof GenerateWorkoutInputSplitVariant];
+export type GeneratePlanInputDifficultyLevel = typeof GeneratePlanInputDifficultyLevel[keyof typeof GeneratePlanInputDifficultyLevel];
 
 
-export const GenerateWorkoutInputSplitVariant = {
-  Standard: 'Standard',
-  Core: 'Core',
-} as const;
-
-export type GenerateWorkoutInputDifficultyLevel = typeof GenerateWorkoutInputDifficultyLevel[keyof typeof GenerateWorkoutInputDifficultyLevel];
-
-
-export const GenerateWorkoutInputDifficultyLevel = {
+export const GeneratePlanInputDifficultyLevel = {
   Beginner: 'Beginner',
   Intermediate: 'Intermediate',
   Advanced: 'Advanced',
 } as const;
 
-export interface GenerateWorkoutInput {
-  splitType: GenerateWorkoutInputSplitType;
-  /** Standard or Core variant (e.g. Lower + Core) */
-  splitVariant?: GenerateWorkoutInputSplitVariant;
-  difficultyLevel: GenerateWorkoutInputDifficultyLevel;
+export interface GeneratePlanInput {
+  period: GeneratePlanInputPeriod;
+  /** ISO date (YYYY-MM-DD) for when the plan starts */
+  startDate: string;
+  difficultyLevel: GeneratePlanInputDifficultyLevel;
   equipment: string[];
-  /** ISO date for the workout (used to check weekly non-repetition) */
-  scheduledDate?: string;
+  /** Program type e.g. "Full Body", "Push/Pull/Legs" */
+  preferredSplit: string;
+  /** Workouts per week */
+  targetCadence: number;
 }
 
 export interface SessionLog {
@@ -139,9 +107,9 @@ export interface SessionLog {
   exerciseId: number;
   sets: number;
   reps: number;
-  /** Weight in lbs/kg */
   weightUsed?: number;
   notes?: string;
+  isCompleted: boolean;
   loggedAt: string;
 }
 
@@ -161,8 +129,8 @@ export interface GeneratedWorkout {
   splitType: string;
   splitVariant: string;
   compound: ExerciseWithHistory;
+  compound2?: ExerciseWithHistory;
   circuits: Circuit[];
-  scheduledDate?: string;
 }
 
 export interface WorkoutSession {
@@ -171,8 +139,10 @@ export interface WorkoutSession {
   splitVariant: string;
   scheduledDate?: string;
   completedAt?: string;
-  createdAt: string;
+  isCompleted: boolean;
+  photoUri?: string;
   logCount: number;
+  createdAt: string;
 }
 
 export interface SessionLogWithExercise {
@@ -184,17 +154,22 @@ export interface SessionLogWithExercise {
   reps: number;
   weightUsed?: number;
   notes?: string;
+  isCompleted: boolean;
   loggedAt: string;
 }
 
-export interface WorkoutSessionDetail {
+export interface PlannedSession {
   id: number;
   splitType: string;
   splitVariant: string;
   scheduledDate?: string;
   completedAt?: string;
+  isCompleted: boolean;
+  photoUri?: string;
   createdAt: string;
+  workoutPlan: GeneratedWorkout;
   logs: SessionLogWithExercise[];
+  logCount: number;
 }
 
 export interface AddSessionLogInput {
@@ -203,6 +178,21 @@ export interface AddSessionLogInput {
   reps: number;
   weightUsed?: number;
   notes?: string;
+  isCompleted?: boolean;
+}
+
+export interface UpdateSessionLogInput {
+  sets?: number;
+  reps?: number;
+  weightUsed?: number;
+  notes?: string;
+  isCompleted?: boolean;
+}
+
+export interface UpdateSessionInput {
+  isCompleted?: boolean;
+  photoUri?: string;
+  completedAt?: string;
 }
 
 export interface CreateSessionInput {
@@ -212,60 +202,35 @@ export interface CreateSessionInput {
   completedAt?: string;
 }
 
-export type ScheduleEntrySplitType = typeof ScheduleEntrySplitType[keyof typeof ScheduleEntrySplitType];
-
-
-export const ScheduleEntrySplitType = {
-  Full_Body: 'Full Body',
-  Upper: 'Upper',
-  Lower: 'Lower',
-  Push: 'Push',
-  Pull: 'Pull',
-  Legs: 'Legs',
-} as const;
-
-export type ScheduleEntrySplitVariant = typeof ScheduleEntrySplitVariant[keyof typeof ScheduleEntrySplitVariant];
-
-
-export const ScheduleEntrySplitVariant = {
-  Standard: 'Standard',
-  Core: 'Core',
-} as const;
+export interface XpReward {
+  xpEarned: number;
+  coinsEarned: number;
+  totalXp: number;
+  totalCoins: number;
+  level: number;
+  leveledUp: boolean;
+}
 
 export interface ScheduleEntry {
   id: number;
   scheduledDate: string;
-  splitType: ScheduleEntrySplitType;
-  splitVariant: ScheduleEntrySplitVariant;
-  /** Linked session if completed */
+  splitType: string;
+  splitVariant: string;
   sessionId?: number;
   createdAt: string;
 }
 
-export type CreateScheduleEntryInputSplitType = typeof CreateScheduleEntryInputSplitType[keyof typeof CreateScheduleEntryInputSplitType];
-
-
-export const CreateScheduleEntryInputSplitType = {
-  Full_Body: 'Full Body',
-  Upper: 'Upper',
-  Lower: 'Lower',
-  Push: 'Push',
-  Pull: 'Pull',
-  Legs: 'Legs',
-} as const;
-
-export type CreateScheduleEntryInputSplitVariant = typeof CreateScheduleEntryInputSplitVariant[keyof typeof CreateScheduleEntryInputSplitVariant];
-
-
-export const CreateScheduleEntryInputSplitVariant = {
-  Standard: 'Standard',
-  Core: 'Core',
-} as const;
-
 export interface CreateScheduleEntryInput {
   scheduledDate: string;
-  splitType: CreateScheduleEntryInputSplitType;
-  splitVariant: CreateScheduleEntryInputSplitVariant;
+  splitType: string;
+  splitVariant: string;
+}
+
+export interface SaveScheduleBulkInput {
+  /** Format: YYYY-MM — the month to replace schedule for */
+  yearMonth: string;
+  /** List of ISO dates the user plans to work out */
+  dates: string[];
 }
 
 export interface StatsSummary {
@@ -273,6 +238,7 @@ export interface StatsSummary {
   currentStreak: number;
   thisWeekCount: number;
   totalExercisesLogged: number;
+  completedSessions: number;
 }
 
 export type ListExercisesParams = {

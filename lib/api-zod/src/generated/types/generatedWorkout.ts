@@ -12,6 +12,6 @@ export interface GeneratedWorkout {
   splitType: string;
   splitVariant: string;
   compound: ExerciseWithHistory;
+  compound2?: ExerciseWithHistory;
   circuits: Circuit[];
-  scheduledDate?: string;
 }

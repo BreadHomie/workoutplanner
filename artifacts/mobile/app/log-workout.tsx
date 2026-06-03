@@ -11,7 +11,9 @@ import {
   ActivityIndicator,
   Animated,
   Dimensions,
+  KeyboardAvoidingView,
   Platform,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -23,7 +25,6 @@ import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 
 import { useColors } from "@/hooks/useColors";
-import KeyboardAwareScrollViewCompat from "@/components/KeyboardAwareScrollViewCompat";
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 
@@ -196,7 +197,8 @@ export default function LogWorkoutScreen() {
         </View>
       </View>
 
-      <KeyboardAwareScrollViewCompat
+      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1 }}>
+      <ScrollView
         contentContainerStyle={{ flexGrow: 1, paddingBottom: insets.bottom + 24 }}
         keyboardShouldPersistTaps="handled"
       >
@@ -291,7 +293,8 @@ export default function LogWorkoutScreen() {
             )}
           </TouchableOpacity>
         </View>
-      </KeyboardAwareScrollViewCompat>
+      </ScrollView>
+      </KeyboardAvoidingView>
 
       {showPROverlay && (
         <Animated.View style={[styles.prOverlay, { backgroundColor: 'rgba(0,0,0,0.9)', opacity: prOpacity }]}>

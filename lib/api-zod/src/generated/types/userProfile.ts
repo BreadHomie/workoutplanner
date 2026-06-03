@@ -6,15 +6,16 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { UserProfileDifficultyLevel } from './userProfileDifficultyLevel';
-import type { UserProfilePreferredSplit } from './userProfilePreferredSplit';
 
 export interface UserProfile {
   id: number;
   difficultyLevel: UserProfileDifficultyLevel;
   equipment: string[];
-  /** Target workouts per week */
   targetCadence: number;
-  preferredSplit: UserProfilePreferredSplit;
+  preferredSplit: string;
+  totalXp: number;
+  totalCoins: number;
+  level: number;
   createdAt: Date;
   updatedAt: Date;
 }

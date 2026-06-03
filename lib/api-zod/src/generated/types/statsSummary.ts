@@ -11,4 +11,5 @@ export interface StatsSummary {
   currentStreak: number;
   thisWeekCount: number;
   totalExercisesLogged: number;
+  completedSessions: number;
 }

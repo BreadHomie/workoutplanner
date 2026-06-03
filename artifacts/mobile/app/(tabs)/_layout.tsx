@@ -14,11 +14,11 @@ function NativeTabLayout() {
     <NativeTabs>
       <NativeTabs.Trigger name="index">
         <Icon sf={{ default: "bolt", selected: "bolt.fill" }} />
-        <Label>Today</Label>
+        <Label>Generate</Label>
       </NativeTabs.Trigger>
       <NativeTabs.Trigger name="history">
         <Icon sf={{ default: "clock", selected: "clock.fill" }} />
-        <Label>History</Label>
+        <Label>My Workouts</Label>
       </NativeTabs.Trigger>
       <NativeTabs.Trigger name="schedule">
         <Icon sf={{ default: "calendar", selected: "calendar.circle.fill" }} />
@@ -73,7 +73,7 @@ function ClassicTabLayout() {
       <Tabs.Screen
         name="index"
         options={{
-          title: "Today",
+          title: "Generate",
           tabBarIcon: ({ color }) =>
             isIOS ? (
               <SymbolView name="bolt" tintColor={color} size={24} />
@@ -85,7 +85,7 @@ function ClassicTabLayout() {
       <Tabs.Screen
         name="history"
         options={{
-          title: "History",
+          title: "My Workouts",
           tabBarIcon: ({ color }) =>
             isIOS ? (
               <SymbolView name="clock" tintColor={color} size={24} />

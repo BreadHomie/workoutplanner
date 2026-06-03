@@ -6,11 +6,10 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { UpdateProfileInputDifficultyLevel } from './updateProfileInputDifficultyLevel';
-import type { UpdateProfileInputPreferredSplit } from './updateProfileInputPreferredSplit';
 
 export interface UpdateProfileInput {
   difficultyLevel?: UpdateProfileInputDifficultyLevel;
   equipment?: string[];
   targetCadence?: number;
-  preferredSplit?: UpdateProfileInputPreferredSplit;
+  preferredSplit?: string;
 }
