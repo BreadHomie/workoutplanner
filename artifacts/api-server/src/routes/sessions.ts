@@ -328,6 +328,27 @@ router.post("/sessions/:sessionId/logs/:logId/complete", async (req, res): Promi
   res.json(reward ?? { xpEarned: XP_PER_EXERCISE, coinsEarned: COINS_PER_EXERCISE, totalXp: 0, totalCoins: 0, level: 1, leveledUp: false });
 });
 
+router.delete("/sessions/reset-workouts", async (_req, res): Promise<void> => {
+  const sessions = await db.select({ id: workoutSessionsTable.id }).from(workoutSessionsTable);
+  if (sessions.length > 0) {
+    await db.delete(workoutSessionsTable);
+  }
+  res.json({ deleted: sessions.length });
+});
+
+router.delete("/sessions/reset-all", async (_req, res): Promise<void> => {
+  const sessions = await db.select({ id: workoutSessionsTable.id }).from(workoutSessionsTable);
+  await db.delete(workoutSessionsTable);
+  await db.update(userProfilesTable).set({
+    totalXp: 0, totalCoins: 0, level: 1,
+    difficultyLevel: "Intermediate",
+    equipment: [],
+    targetCadence: 3,
+    preferredSplit: "Full Body",
+  });
+  res.json({ deleted: sessions.length });
+});
+
 router.get("/stats/personal-records", async (_req, res): Promise<void> => {
   const records = await db
     .select({

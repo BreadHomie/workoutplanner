@@ -32,6 +32,8 @@ import type {
   PlannedSession,
   ReplaceExerciseInput,
   ReplaceExerciseResult,
+  ResetAll200,
+  ResetWorkouts200,
   SaveScheduleBulkInput,
   ScheduleEntry,
   SessionLog,
@@ -1464,6 +1466,146 @@ export const useDeleteScheduleEntry = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getDeleteScheduleEntryMutationOptions(options));
+    }
+
+export const getResetWorkoutsUrl = () => {
+
+
+
+
+  return `/api/sessions/reset-workouts`
+}
+
+/**
+ * @summary Delete all workout sessions and logs, keep profile and exercises
+ */
+export const resetWorkouts = async ( options?: RequestInit): Promise<ResetWorkouts200> => {
+
+  return customFetch<ResetWorkouts200>(getResetWorkoutsUrl(),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+export const getResetWorkoutsMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof resetWorkouts>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof resetWorkouts>>, TError,void, TContext> => {
+
+const mutationKey = ['resetWorkouts'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof resetWorkouts>>, void> = () => {
+
+
+          return  resetWorkouts(requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ResetWorkoutsMutationResult = NonNullable<Awaited<ReturnType<typeof resetWorkouts>>>
+
+    export type ResetWorkoutsMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Delete all workout sessions and logs, keep profile and exercises
+ */
+export const useResetWorkouts = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof resetWorkouts>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof resetWorkouts>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getResetWorkoutsMutationOptions(options));
+    }
+
+export const getResetAllUrl = () => {
+
+
+
+
+  return `/api/sessions/reset-all`
+}
+
+/**
+ * @summary Hard reset - wipe sessions, logs, and reset profile to defaults
+ */
+export const resetAll = async ( options?: RequestInit): Promise<ResetAll200> => {
+
+  return customFetch<ResetAll200>(getResetAllUrl(),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+export const getResetAllMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof resetAll>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof resetAll>>, TError,void, TContext> => {
+
+const mutationKey = ['resetAll'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof resetAll>>, void> = () => {
+
+
+          return  resetAll(requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ResetAllMutationResult = NonNullable<Awaited<ReturnType<typeof resetAll>>>
+
+    export type ResetAllMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Hard reset - wipe sessions, logs, and reset profile to defaults
+ */
+export const useResetAll = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof resetAll>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof resetAll>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getResetAllMutationOptions(options));
     }
 
 export const getGetStatsSummaryUrl = () => {

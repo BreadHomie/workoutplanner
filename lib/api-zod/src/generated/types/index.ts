@@ -26,6 +26,8 @@ export * from './plannedSession';
 export * from './replaceExerciseInput';
 export * from './replaceExerciseInputDirection';
 export * from './replaceExerciseResult';
+export * from './resetAll200';
+export * from './resetWorkouts200';
 export * from './saveScheduleBulkInput';
 export * from './scheduleEntry';
 export * from './sessionLog';

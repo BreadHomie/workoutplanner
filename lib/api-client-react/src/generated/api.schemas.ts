@@ -315,3 +315,11 @@ export type ListSessionsParams = {
 limit?: number;
 };
 
+export type ResetWorkouts200 = {
+  deleted: number;
+};
+
+export type ResetAll200 = {
+  deleted: number;
+};
+

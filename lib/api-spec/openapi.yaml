@@ -411,6 +411,40 @@ paths:
         "204":
           description: Deleted
 
+  /sessions/reset-workouts:
+    delete:
+      operationId: resetWorkouts
+      tags: [sessions]
+      summary: Delete all workout sessions and logs, keep profile and exercises
+      responses:
+        "200":
+          description: Reset complete
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  deleted:
+                    type: integer
+                required: [deleted]
+
+  /sessions/reset-all:
+    delete:
+      operationId: resetAll
+      tags: [sessions]
+      summary: Hard reset - wipe sessions, logs, and reset profile to defaults
+      responses:
+        "200":
+          description: Hard reset complete
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  deleted:
+                    type: integer
+                required: [deleted]
+
   /stats/summary:
     get:
       operationId: getStatsSummary

@@ -684,6 +684,22 @@ export const DeleteScheduleEntryParams = zod.object({
 
 
 /**
+ * @summary Delete all workout sessions and logs, keep profile and exercises
+ */
+export const ResetWorkoutsResponse = zod.object({
+  "deleted": zod.number()
+})
+
+
+/**
+ * @summary Hard reset - wipe sessions, logs, and reset profile to defaults
+ */
+export const ResetAllResponse = zod.object({
+  "deleted": zod.number()
+})
+
+
+/**
  * @summary Get workout stats summary
  */
 export const GetStatsSummaryResponse = zod.object({

@@ -6,6 +6,7 @@ import * as ImagePicker from "expo-image-picker";
 import * as Haptics from "expo-haptics";
 import { format } from "date-fns";
 import { Feather } from "@expo/vector-icons";
+import { Ionicons } from "@expo/vector-icons";
 import React, { useState, useEffect, useRef } from "react";
 import {
   ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity,
@@ -14,6 +15,22 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useQueryClient } from "@tanstack/react-query";
 import { useColors } from "@/hooks/useColors";
+
+type SetData = { done: boolean; weight: string };
+
+function parseSetData(json: string | null | undefined, numSets: number): SetData[] {
+  if (!json) return Array.from({ length: numSets }, () => ({ done: false, weight: "" }));
+  try {
+    const parsed = JSON.parse(json);
+    if (Array.isArray(parsed)) {
+      if (parsed.length > 0 && typeof parsed[0] === "boolean") {
+        return parsed.map((b: boolean) => ({ done: b, weight: "" }));
+      }
+      return parsed.map((s: any) => ({ done: s.done ?? false, weight: s.weight != null ? String(s.weight) : "" }));
+    }
+  } catch (_) {}
+  return Array.from({ length: numSets }, () => ({ done: false, weight: "" }));
+}
 
 function getPrimaryMuscle(ex: any): string {
   if (ex?.hitChest) return "Chest";
@@ -31,7 +48,11 @@ function StarRating({ rating, onRate }: { rating: number | null; onRate: (n: num
     <View style={srStyles.row}>
       {[1, 2, 3, 4, 5].map(n => (
         <TouchableOpacity key={n} onPress={() => onRate(n)} hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}>
-          <Feather name="star" size={13} color={n <= (rating ?? 0) ? colors.primary : colors.mutedForeground} />
+          <Ionicons
+            name={n <= (rating ?? 0) ? "star" : "star-outline"}
+            size={14}
+            color={n <= (rating ?? 0) ? colors.primary : colors.mutedForeground}
+          />
         </TouchableOpacity>
       ))}
     </View>
@@ -55,11 +76,7 @@ const shStyles = StyleSheet.create({
   label: { fontSize: 11, fontFamily: "Inter_700Bold", letterSpacing: 1 },
 });
 
-function ExerciseLogItem({
-  session, exerciseData,
-}: {
-  session: any; exerciseData: any;
-}) {
+function ExerciseLogItem({ session, exerciseData }: { session: any; exerciseData: any }) {
   const colors = useColors();
   const queryClient = useQueryClient();
   const updateLog = useUpdateSessionLog();
@@ -72,19 +89,16 @@ function ExerciseLogItem({
   const logId: number | undefined = existingLog?.id;
 
   const [expanded, setExpanded] = useState(false);
-  const [weight, setWeight] = useState(existingLog?.weightUsed?.toString() || "");
+  const [sets, setSets] = useState<SetData[]>(() =>
+    parseSetData(existingLog?.setCompletions, exerciseData.suggestedSets)
+  );
   const [notes, setNotes] = useState(existingLog?.notes || "");
   const [rating, setRating] = useState<number | null>(existingLog?.rating ?? null);
   const [isCompleted, setIsCompleted] = useState(existingLog?.isCompleted || false);
-  const [setCompletions, setSetCompletions] = useState<boolean[]>(() => {
-    if (existingLog?.setCompletions) {
-      try { return JSON.parse(existingLog.setCompletions); } catch (_) {}
-    }
-    return Array(exerciseData.suggestedSets).fill(false);
-  });
   const [showToast, setShowToast] = useState(false);
   const [isReplacing, setIsReplacing] = useState(false);
   const toastOpacity = useRef(new Animated.Value(0)).current;
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const saveLog = (data: Record<string, unknown>) => {
     if (logId) {
@@ -97,13 +111,16 @@ function ExerciseLogItem({
     }
   };
 
-  useEffect(() => {
-    const t = setTimeout(() => {
-      const p = parseFloat(weight);
-      if (!isNaN(p)) saveLog({ weightUsed: p });
-    }, 800);
-    return () => clearTimeout(t);
-  }, [weight]);
+  const persistSets = (newSets: SetData[], immediate: boolean) => {
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    const doSave = () => {
+      const json = JSON.stringify(newSets.map(s => ({ done: s.done, weight: s.weight ? parseFloat(s.weight) : null })));
+      const maxWeight = Math.max(0, ...newSets.map(s => parseFloat(s.weight) || 0));
+      saveLog({ setCompletions: json, ...(maxWeight > 0 ? { weightUsed: maxWeight } : {}) });
+    };
+    if (immediate) doSave();
+    else saveTimerRef.current = setTimeout(doSave, 800);
+  };
 
   useEffect(() => {
     const t = setTimeout(() => saveLog({ notes }), 800);
@@ -111,11 +128,16 @@ function ExerciseLogItem({
   }, [notes]);
 
   const handleSetToggle = (idx: number) => {
-    const next = [...setCompletions];
-    next[idx] = !next[idx];
-    setSetCompletions(next);
-    saveLog({ setCompletions: JSON.stringify(next) });
-    if (next.every(Boolean) && !isCompleted) handleComplete(next);
+    const next = sets.map((s, i) => i === idx ? { ...s, done: !s.done } : s);
+    setSets(next);
+    persistSets(next, true);
+    if (next.every(s => s.done) && !isCompleted) handleComplete();
+  };
+
+  const handleSetWeight = (idx: number, weight: string) => {
+    const next = sets.map((s, i) => i === idx ? { ...s, weight } : s);
+    setSets(next);
+    persistSets(next, false);
   };
 
   const handleRating = (n: number) => {
@@ -123,7 +145,7 @@ function ExerciseLogItem({
     saveLog({ rating: n });
   };
 
-  const handleComplete = (completions?: boolean[]) => {
+  const handleComplete = () => {
     if (isCompleted) return;
     setIsCompleted(true);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -145,11 +167,11 @@ function ExerciseLogItem({
     }
   };
 
-  const handleReplace = (direction: "random" | "easier" | "harder") => {
+  const handleSwap = () => {
     setIsReplacing(true);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     replaceEx.mutate(
-      { sessionId: session.id, data: { exerciseId: exercise.id, direction } },
+      { sessionId: session.id, data: { exerciseId: exercise.id, direction: "random" } },
       {
         onSuccess: () => {
           queryClient.invalidateQueries({ queryKey: ["/api/sessions", session.id] });
@@ -161,8 +183,8 @@ function ExerciseLogItem({
   };
 
   const muscle = getPrimaryMuscle(exercise);
-  const completedCount = setCompletions.filter(Boolean).length;
-  const totalSets = exerciseData.suggestedSets;
+  const completedCount = sets.filter(s => s.done).length;
+  const totalSets = sets.length;
 
   return (
     <View style={[styles.exCard, {
@@ -210,44 +232,48 @@ function ExerciseLogItem({
         </View>
       </TouchableOpacity>
 
-      {/* XP toast */}
       {showToast && (
         <Animated.View style={[styles.toast, { opacity: toastOpacity, backgroundColor: colors.secondary }]}>
           <Text style={[styles.toastText, { color: colors.primary }]}>+10 XP</Text>
         </Animated.View>
       )}
 
-      {/* Expanded body */}
       {expanded && (
         <View style={[styles.exBody, { borderTopColor: colors.border }]}>
-          {/* Per-set checkboxes */}
-          <View style={styles.setsRow}>
-            {setCompletions.map((done, idx) => (
-              <TouchableOpacity
-                key={idx}
-                style={[styles.setChip, { backgroundColor: done ? colors.primary : colors.muted }]}
-                onPress={() => handleSetToggle(idx)}
-              >
-                <Feather name={done ? "check" : "circle"} size={11} color={done ? colors.primaryForeground : colors.mutedForeground} />
-                <Text style={[styles.setChipText, { color: done ? colors.primaryForeground : colors.mutedForeground }]}>
-                  {idx + 1}
-                </Text>
-              </TouchableOpacity>
+          {/* Per-set rows: each has own weight input */}
+          <View style={styles.setsTable}>
+            {sets.map((s, idx) => (
+              <View key={idx} style={[styles.setRow, idx < sets.length - 1 && { borderBottomColor: colors.border, borderBottomWidth: 1 }]}>
+                <TouchableOpacity
+                  onPress={() => handleSetToggle(idx)}
+                  style={styles.setCheckbox}
+                  hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                >
+                  <Feather
+                    name={s.done ? "check-circle" : "circle"}
+                    size={18}
+                    color={s.done ? colors.primary : colors.mutedForeground}
+                  />
+                </TouchableOpacity>
+                <Text style={[styles.setLabel, { color: colors.mutedForeground }]}>Set {idx + 1}</Text>
+                <View style={styles.setWeightWrap}>
+                  <TextInput
+                    style={[styles.setWeightInput, {
+                      color: colors.foreground,
+                      borderColor: s.done ? colors.primary + "60" : colors.border,
+                      backgroundColor: colors.background,
+                    }]}
+                    value={s.weight}
+                    onChangeText={w => handleSetWeight(idx, w)}
+                    keyboardType="numeric"
+                    placeholder="0"
+                    placeholderTextColor={colors.mutedForeground}
+                    returnKeyType="done"
+                  />
+                  <Text style={[styles.setWeightUnit, { color: colors.mutedForeground }]}>lbs</Text>
+                </View>
+              </View>
             ))}
-          </View>
-
-          {/* Weight input */}
-          <View style={styles.weightRow}>
-            <Text style={[styles.weightLabel, { color: colors.mutedForeground }]}>Weight</Text>
-            <TextInput
-              style={[styles.weightInput, { color: colors.foreground, borderColor: colors.border, backgroundColor: colors.background }]}
-              value={weight}
-              onChangeText={setWeight}
-              keyboardType="numeric"
-              placeholder="0"
-              placeholderTextColor={colors.mutedForeground}
-            />
-            <Text style={[styles.unitText, { color: colors.mutedForeground }]}>lbs</Text>
           </View>
 
           {/* Notes */}
@@ -261,39 +287,21 @@ function ExerciseLogItem({
             numberOfLines={2}
           />
 
-          {/* Replace buttons */}
-          <View style={styles.replaceRow}>
-            <TouchableOpacity
-              style={[styles.replaceBtn, { backgroundColor: colors.muted }]}
-              onPress={() => handleReplace("easier")}
-              disabled={isReplacing}
-            >
-              <Feather name="arrow-down-circle" size={13} color={colors.mutedForeground} />
-              <Text style={[styles.replaceBtnText, { color: colors.mutedForeground }]}>Easier</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.replaceBtn, { backgroundColor: colors.primary }]}
-              onPress={() => handleReplace("random")}
-              disabled={isReplacing}
-            >
-              {isReplacing ? (
-                <ActivityIndicator size="small" color={colors.primaryForeground} />
-              ) : (
-                <>
-                  <Feather name="shuffle" size={13} color={colors.primaryForeground} />
-                  <Text style={[styles.replaceBtnText, { color: colors.primaryForeground }]}>Swap</Text>
-                </>
-              )}
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.replaceBtn, { backgroundColor: colors.muted }]}
-              onPress={() => handleReplace("harder")}
-              disabled={isReplacing}
-            >
-              <Feather name="arrow-up-circle" size={13} color={colors.mutedForeground} />
-              <Text style={[styles.replaceBtnText, { color: colors.mutedForeground }]}>Harder</Text>
-            </TouchableOpacity>
-          </View>
+          {/* Swap button */}
+          <TouchableOpacity
+            style={[styles.swapBtn, { backgroundColor: colors.secondary }]}
+            onPress={handleSwap}
+            disabled={isReplacing}
+          >
+            {isReplacing ? (
+              <ActivityIndicator size="small" color={colors.foreground} />
+            ) : (
+              <>
+                <Feather name="shuffle" size={14} color={colors.foreground} />
+                <Text style={[styles.swapBtnText, { color: colors.foreground }]}>Swap Exercise</Text>
+              </>
+            )}
+          </TouchableOpacity>
         </View>
       )}
     </View>
@@ -341,8 +349,6 @@ function SessionDetails({ sessionId }: { sessionId: number }) {
   };
 
   const plan = session.workoutPlan;
-
-  // Build sections
   type SectionItem = { data: any };
   const sections: { label: string; items: SectionItem[] }[] = [];
 
@@ -360,7 +366,6 @@ function SessionDetails({ sessionId }: { sessionId: number }) {
 
   return (
     <ScrollView contentContainerStyle={{ paddingBottom: 100, gap: 0 }}>
-      {/* Session header */}
       <View style={[styles.sessionHeaderCard, { backgroundColor: colors.card }]}>
         <View style={styles.shRow}>
           <View style={{ flex: 1 }}>
@@ -390,7 +395,6 @@ function SessionDetails({ sessionId }: { sessionId: number }) {
         )}
       </View>
 
-      {/* Sections */}
       {sections.map((section) => (
         <View key={section.label} style={{ marginBottom: 4 }}>
           <SectionHeader label={section.label} />
@@ -497,7 +501,7 @@ const styles = StyleSheet.create({
   shPhotoBtnText: { fontSize: 14, fontFamily: "Inter_500Medium" },
 
   exCard: { borderRadius: 12, borderWidth: 1, overflow: "hidden" },
-  exHeader: { flexDirection: "row", alignItems: "center", padding: 14, gap: 0 },
+  exHeader: { flexDirection: "row", alignItems: "center", padding: 14 },
   checkBtn: { marginRight: 12 },
   exName: { fontSize: 15, fontFamily: "Inter_600SemiBold", marginBottom: 4 },
   exTagRow: { flexDirection: "row", alignItems: "center", gap: 8 },
@@ -508,23 +512,27 @@ const styles = StyleSheet.create({
 
   exBody: { borderTopWidth: 1, padding: 14, gap: 12 },
 
-  setsRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  setChip: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8 },
-  setChipText: { fontSize: 12, fontFamily: "Inter_700Bold" },
-
-  weightRow: { flexDirection: "row", alignItems: "center", gap: 10 },
-  weightLabel: { fontSize: 14, fontFamily: "Inter_500Medium" },
-  weightInput: { width: 80, height: 40, borderWidth: 1, borderRadius: 8, textAlign: "center", fontFamily: "Inter_600SemiBold", fontSize: 16 },
-  unitText: { fontSize: 13, fontFamily: "Inter_500Medium" },
+  setsTable: { borderRadius: 8, overflow: "hidden" },
+  setRow: { flexDirection: "row", alignItems: "center", paddingVertical: 10, gap: 10 },
+  setCheckbox: { width: 28, alignItems: "center" },
+  setLabel: { fontSize: 13, fontFamily: "Inter_600SemiBold", width: 48 },
+  setWeightWrap: { flex: 1, flexDirection: "row", alignItems: "center", gap: 6, justifyContent: "flex-end" },
+  setWeightInput: {
+    width: 80, height: 38, borderWidth: 1, borderRadius: 8,
+    textAlign: "center", fontFamily: "Inter_600SemiBold", fontSize: 15,
+  },
+  setWeightUnit: { fontSize: 12, fontFamily: "Inter_500Medium", width: 24 },
 
   notesInput: {
-    minHeight: 60, borderWidth: 1, borderRadius: 8, padding: 10,
+    minHeight: 56, borderWidth: 1, borderRadius: 8, padding: 10,
     fontSize: 14, fontFamily: "Inter_400Regular", textAlignVertical: "top",
   },
 
-  replaceRow: { flexDirection: "row", gap: 8 },
-  replaceBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 5, paddingVertical: 8, borderRadius: 8 },
-  replaceBtnText: { fontSize: 12, fontFamily: "Inter_600SemiBold" },
+  swapBtn: {
+    flexDirection: "row", alignItems: "center", justifyContent: "center",
+    gap: 8, paddingVertical: 10, borderRadius: 10,
+  },
+  swapBtnText: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
 
   completeBtn: { height: 56, borderRadius: 16, justifyContent: "center", alignItems: "center" },
   completeBtnText: { fontSize: 18, fontFamily: "Inter_700Bold" },

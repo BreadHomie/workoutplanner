@@ -1,9 +1,13 @@
-import { useGetPersonalRecords, useGetProfile, useGetStatsSummary } from "@workspace/api-client-react";
+import {
+  useGetPersonalRecords, useGetProfile, useGetStatsSummary,
+  useResetWorkouts, useResetAll
+} from "@workspace/api-client-react";
 import React, { useState } from "react";
-import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Svg, { Circle } from "react-native-svg";
 import { Feather } from "@expo/vector-icons";
+import { useQueryClient } from "@tanstack/react-query";
 import { useColors } from "@/hooks/useColors";
 
 const MUSCLE_GROUP_ORDER = ["Chest", "Back", "Legs", "Core", "Arms", "Shoulders", "Other"];
@@ -28,10 +32,13 @@ function getLevelLabel(level: number) {
 export default function ProfileScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
+  const queryClient = useQueryClient();
 
   const { data: profile, isLoading: isProfileLoading } = useGetProfile();
   const { data: stats, isLoading: isStatsLoading } = useGetStatsSummary();
   const { data: personalRecords, isLoading: isPRLoading } = useGetPersonalRecords();
+  const resetWorkoutsMut = useResetWorkouts();
+  const resetAllMut = useResetAll();
 
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set(MUSCLE_GROUP_ORDER));
 
@@ -42,6 +49,50 @@ export default function ProfileScreen() {
       else next.add(group);
       return next;
     });
+  };
+
+  const handleResetWorkouts = () => {
+    Alert.alert(
+      "Reset Workouts",
+      "This will delete all generated workout plans. Your profile, level, and settings will be kept.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Reset",
+          style: "destructive",
+          onPress: () => {
+            resetWorkoutsMut.mutate(undefined, {
+              onSuccess: () => {
+                queryClient.invalidateQueries();
+                Alert.alert("Done", "All workouts have been reset.");
+              },
+            });
+          },
+        },
+      ]
+    );
+  };
+
+  const handleHardReset = () => {
+    Alert.alert(
+      "Hard Reset",
+      "This will delete ALL workouts and reset your profile, level, and coins to zero. This cannot be undone.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Hard Reset",
+          style: "destructive",
+          onPress: () => {
+            resetAllMut.mutate(undefined, {
+              onSuccess: () => {
+                queryClient.invalidateQueries();
+                Alert.alert("Done", "Everything has been reset.");
+              },
+            });
+          },
+        },
+      ]
+    );
   };
 
   if (isProfileLoading || isStatsLoading) {
@@ -64,7 +115,6 @@ export default function ProfileScreen() {
 
   const currentLevelXp = profile.totalXp % 100;
 
-  // Group records by muscle group, sorted by bestWeight DESC within each group
   const groupedRecords: Record<string, typeof personalRecords> = {};
   if (personalRecords) {
     for (const pr of personalRecords) {
@@ -78,6 +128,7 @@ export default function ProfileScreen() {
   }
 
   const hasAnyRecords = personalRecords && personalRecords.length > 0;
+  const isResetting = resetWorkoutsMut.isPending || resetAllMut.isPending;
 
   return (
     <ScrollView
@@ -244,6 +295,51 @@ export default function ProfileScreen() {
             );
           })}
       </View>
+
+      {/* Danger Zone */}
+      <View style={[styles.dangerZone, { borderColor: colors.border }]}>
+        <Text style={[styles.dangerTitle, { color: colors.mutedForeground }]}>Data Management</Text>
+
+        <TouchableOpacity
+          style={[styles.resetBtn, { backgroundColor: colors.secondary, borderColor: colors.border }]}
+          onPress={handleResetWorkouts}
+          disabled={isResetting}
+        >
+          {resetWorkoutsMut.isPending ? (
+            <ActivityIndicator size="small" color={colors.foreground} />
+          ) : (
+            <>
+              <Feather name="refresh-ccw" size={16} color={colors.foreground} />
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.resetBtnTitle, { color: colors.foreground }]}>Reset Workouts</Text>
+                <Text style={[styles.resetBtnSub, { color: colors.mutedForeground }]}>
+                  Delete all plans · keeps level & settings
+                </Text>
+              </View>
+            </>
+          )}
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.resetBtn, { backgroundColor: "#ef444415", borderColor: "#ef444430" }]}
+          onPress={handleHardReset}
+          disabled={isResetting}
+        >
+          {resetAllMut.isPending ? (
+            <ActivityIndicator size="small" color="#ef4444" />
+          ) : (
+            <>
+              <Feather name="alert-triangle" size={16} color="#ef4444" />
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.resetBtnTitle, { color: "#ef4444" }]}>Hard Reset</Text>
+                <Text style={[styles.resetBtnSub, { color: "#ef444499" }]}>
+                  Wipe everything · resets level to 1
+                </Text>
+              </View>
+            </>
+          )}
+        </TouchableOpacity>
+      </View>
     </ScrollView>
   );
 }
@@ -278,10 +374,7 @@ const styles = StyleSheet.create({
   prSection: { gap: 12 },
   sectionTitle: { fontSize: 22, fontFamily: "Inter_700Bold", marginBottom: 4, letterSpacing: -0.5 },
   prLoading: { paddingVertical: 32, alignItems: "center" },
-  prEmpty: {
-    borderWidth: 1, borderRadius: 16, padding: 32,
-    alignItems: "center", gap: 12,
-  },
+  prEmpty: { borderWidth: 1, borderRadius: 16, padding: 32, alignItems: "center", gap: 12 },
   prEmptyText: { fontSize: 14, fontFamily: "Inter_500Medium", textAlign: "center", lineHeight: 20 },
 
   groupCard: { borderRadius: 16, overflow: "hidden" },
@@ -296,13 +389,19 @@ const styles = StyleSheet.create({
   countBubbleText: { fontSize: 12, fontFamily: "Inter_600SemiBold" },
 
   groupBody: { borderTopWidth: 1, paddingHorizontal: 16 },
-  prRow: {
-    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
-    paddingVertical: 12,
-  },
+  prRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 12 },
   prRowLeft: { flexDirection: "row", alignItems: "center", gap: 10, flex: 1, marginRight: 12 },
   prRank: { fontSize: 13, fontFamily: "Inter_700Bold", width: 24 },
   prName: { fontSize: 14, fontFamily: "Inter_500Medium", flex: 1 },
   prBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
   prBadgeText: { fontSize: 13, fontFamily: "Inter_700Bold" },
+
+  dangerZone: { marginTop: 32, borderTopWidth: 1, paddingTop: 24, gap: 12 },
+  dangerTitle: { fontSize: 12, fontFamily: "Inter_700Bold", letterSpacing: 1, textTransform: "uppercase", marginBottom: 4 },
+  resetBtn: {
+    flexDirection: "row", alignItems: "center", gap: 12,
+    padding: 16, borderRadius: 14, borderWidth: 1,
+  },
+  resetBtnTitle: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
+  resetBtnSub: { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 2 },
 });
