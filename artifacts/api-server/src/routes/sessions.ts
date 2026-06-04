@@ -159,11 +159,19 @@ router.post("/sessions/:sessionId/replace-exercise", async (req, res): Promise<v
 
   const [profile] = await db.select().from(userProfilesTable).limit(1);
   const equipment = profile?.equipment ?? [];
+  const difficultyLevel = profile?.difficultyLevel ?? "Intermediate";
 
+  // Use the user's profile difficulty (not the exercise's) to find a suitable replacement
   const diffLevels = ["Beginner", "Intermediate", "Advanced"];
-  const idx = diffLevels.indexOf(currentEx.difficulty);
-  const targetDiffs = diffLevels.slice(0, Math.max(idx + 1, 1));
+  const diffIdx = diffLevels.indexOf(difficultyLevel);
+  const targetDiffs = diffLevels.slice(0, Math.max(diffIdx + 1, 1));
 
+  // Always include Bodyweight in the equipment pool (require no equipment)
+  const equipWithBodyweight = equipment.length > 0
+    ? Array.from(new Set([...equipment, "Bodyweight"]))
+    : [];
+
+  // Build muscle conditions from the exercise being replaced
   const muscleConditions: ReturnType<typeof eq>[] = [];
   if (currentEx.hitChest) muscleConditions.push(eq(exercisesTable.hitChest, true));
   if (currentEx.hitBack) muscleConditions.push(eq(exercisesTable.hitBack, true));
@@ -171,38 +179,59 @@ router.post("/sessions/:sessionId/replace-exercise", async (req, res): Promise<v
   if (currentEx.hitCore) muscleConditions.push(eq(exercisesTable.hitCore, true));
   if (currentEx.hitArm) muscleConditions.push(eq(exercisesTable.hitArm, true));
   if (currentEx.hitShoulder) muscleConditions.push(eq(exercisesTable.hitShoulder, true));
+  const muscleOr = muscleConditions.length > 0
+    ? (muscleConditions.length === 1 ? muscleConditions[0] : or(...muscleConditions))
+    : undefined;
 
-  // Get all exercise IDs already in the plan (to exclude)
+  // Get all exercise IDs already in the plan (to exclude the swapped-in duplicates)
   const plan = JSON.parse(session.workoutPlanJson);
   const planIds = new Set<number>();
   if (plan.compound?.exercise?.id) planIds.add(plan.compound.exercise.id);
   if (plan.compound2?.exercise?.id) planIds.add(plan.compound2.exercise.id);
   plan.circuits?.forEach((c: any) => c.exercises?.forEach((e: any) => { if (e.exercise?.id) planIds.add(e.exercise.id); }));
-  planIds.delete(exerciseId);
+  planIds.delete(exerciseId); // always allow replacing the current exercise
 
-  // "same" = same muscle group; "random" = any exercise
-  const buildConditions = (useMuscle: boolean) => {
-    const conds: any[] = [inArray(exercisesTable.difficulty, targetDiffs) as any];
-    if (useMuscle && muscleConditions.length > 0) {
-      conds.push((muscleConditions.length === 1 ? muscleConditions[0] : or(...muscleConditions)) as any);
+  /**
+   * Fallback cascade for finding a replacement:
+   *   1. Target difficulty + muscle filter (if same) + equipment
+   *   2. Any difficulty + muscle filter (if same) + equipment
+   *   3. Target difficulty + muscle filter (if same) — no equipment restriction
+   *   4. Any difficulty + muscle filter (if same) — no equipment restriction
+   *   5. Same steps but without muscle filter (for "random" or if "same" has no candidates)
+   */
+  const tryQuery = async (useMuscle: boolean, useDiff: boolean, useEquip: boolean): Promise<typeof currentEx[]> => {
+    const conds: any[] = [];
+    if (useDiff) conds.push(inArray(exercisesTable.difficulty, targetDiffs) as any);
+    if (useMuscle && muscleOr) {
+      conds.push(muscleOr as any);
       if (currentEx.isCompound) conds.push(eq(exercisesTable.isCompound, true) as any);
     }
-    if (equipment.length > 0) conds.push(inArray(exercisesTable.equipment, equipment) as any);
-    return conds;
+    if (useEquip && equipWithBodyweight.length > 0) {
+      conds.push(inArray(exercisesTable.equipment, equipWithBodyweight) as any);
+    }
+    const rows = await db.select().from(exercisesTable).where(conds.length > 0 ? and(...conds) : undefined);
+    return rows.filter(e => !planIds.has(e.id) && e.id !== exerciseId);
   };
 
-  let candidates = await db.select().from(exercisesTable).where(and(...buildConditions(direction === "same")));
-  candidates = candidates.filter(e => !planIds.has(e.id));
+  const isSame = direction === "same";
+  let candidates: typeof currentEx[] = [];
 
-  if (candidates.length === 0) {
-    // Relax difficulty constraint
-    const relaxedConds: any[] = [];
-    if (direction === "same" && muscleConditions.length > 0) {
-      relaxedConds.push((muscleConditions.length === 1 ? muscleConditions[0] : or(...muscleConditions)) as any);
-    }
-    if (equipment.length > 0) relaxedConds.push(inArray(exercisesTable.equipment, equipment) as any);
-    candidates = (await db.select().from(exercisesTable).where(relaxedConds.length > 0 ? and(...relaxedConds) : undefined))
-      .filter(e => !planIds.has(e.id) && e.id !== exerciseId);
+  // Try progressively relaxed queries
+  const queries = [
+    () => tryQuery(isSame, true,  true),
+    () => tryQuery(isSame, false, true),
+    () => tryQuery(isSame, true,  false),
+    () => tryQuery(isSame, false, false),
+    // If "same" exhausted all options, fall back to random (no muscle filter)
+    () => tryQuery(false, true,  true),
+    () => tryQuery(false, false, true),
+    () => tryQuery(false, true,  false),
+    () => tryQuery(false, false, false),
+  ];
+
+  for (const q of queries) {
+    candidates = await q();
+    if (candidates.length > 0) break;
   }
 
   if (candidates.length === 0) { res.status(400).json({ error: "No replacement exercise found" }); return; }
@@ -210,7 +239,7 @@ router.post("/sessions/:sessionId/replace-exercise", async (req, res): Promise<v
   const newEx = candidates[Math.floor(Math.random() * candidates.length)];
   const lastLog = await getLastLog(newEx.id);
 
-  // Find suggestedSets/Reps for the slot being replaced
+  // Patch the workout plan JSON
   let suggestedSets = 3;
   let suggestedReps = 8;
   if (plan.compound?.exercise?.id === exerciseId) {
@@ -234,7 +263,7 @@ router.post("/sessions/:sessionId/replace-exercise", async (req, res): Promise<v
     });
   }
 
-  // Delete old log stub, create new one
+  // Replace the log stub: delete old, insert new
   await db.delete(sessionLogsTable)
     .where(and(eq(sessionLogsTable.sessionId, sessionId), eq(sessionLogsTable.exerciseId, exerciseId)));
 
@@ -377,7 +406,7 @@ router.delete("/sessions/reset-all", async (_req, res): Promise<void> => {
   await db.update(userProfilesTable).set({
     totalXp: 0, totalCoins: 0, level: 1,
     difficultyLevel: "Intermediate",
-    equipment: ["Bodyweight", "Dumbbells", "Barbell", "Cables"],
+    equipment: ["Full Gym", "Bodyweight", "Dumbbells"],
     targetCadence: 3,
     preferredSplit: "Full Body",
   });

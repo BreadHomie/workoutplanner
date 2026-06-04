@@ -31,7 +31,7 @@ const SPLIT_LAYOUTS: Record<string, SplitLayout> = {
     circuits: [
       { slots: [{ muscles: ["chest"] }, { muscles: ["back"] }] },
       { slots: [{ muscles: ["chest"] }, { muscles: ["arm"] }] },
-      { slots: [{ muscles: ["back"] }, { muscles: ["arm"] }] },
+      { slots: [{ muscles: ["back"] }, { muscles: ["core"] }] },
     ],
   },
   "Lower": {
@@ -39,7 +39,7 @@ const SPLIT_LAYOUTS: Record<string, SplitLayout> = {
     circuits: [
       { slots: [{ muscles: ["legs"] }, { muscles: ["legs"] }] },
       { slots: [{ muscles: ["legs"] }, { muscles: ["legs"] }] },
-      { slots: [{ muscles: ["legs"] }, { muscles: ["legs"] }] },
+      { slots: [{ muscles: ["legs"] }, { muscles: ["core"] }] },
     ],
   },
   "Lower_Core": {
@@ -71,7 +71,7 @@ const SPLIT_LAYOUTS: Record<string, SplitLayout> = {
     circuits: [
       { slots: [{ muscles: ["legs"] }, { muscles: ["legs"] }] },
       { slots: [{ muscles: ["legs"] }, { muscles: ["legs"] }] },
-      { slots: [{ muscles: ["legs"] }, { muscles: ["legs"] }] },
+      { slots: [{ muscles: ["legs"] }, { muscles: ["core"] }] },
     ],
   },
   "Legs_Core": {
@@ -113,9 +113,14 @@ function difficultyFilter(level: string) {
   return inArray(exercisesTable.difficulty, ["Beginner", "Intermediate", "Advanced"]);
 }
 
+/**
+ * Build equipment filter. Bodyweight exercises are always included (require no equipment).
+ * If equipment list is empty, no equipment restriction is applied.
+ */
 function equipmentFilter(equipment: string[]) {
   if (!equipment || equipment.length === 0) return undefined;
-  return inArray(exercisesTable.equipment, equipment);
+  const withBodyweight = Array.from(new Set([...equipment, "Bodyweight"]));
+  return inArray(exercisesTable.equipment, withBodyweight);
 }
 
 async function getExerciseRatings(): Promise<Map<number, number>> {
@@ -131,16 +136,32 @@ async function getExerciseRatings(): Promise<Map<number, number>> {
   return new Map(ratings.map(r => [r.exerciseId, parseFloat(r.avgRating ?? "3")]));
 }
 
-function pickRandom(pool: Exercise[], usedIds: Set<number>, ratings?: Map<number, number>): Exercise | undefined {
-  let available = pool.filter((e) => !usedIds.has(e.id));
-  if (available.length === 0) return undefined;
+/**
+ * Pick a random exercise from the pool, respecting weekly non-repetition with graceful fallback.
+ * Tiers:
+ *   1. Not in sessionUsed AND not in weeklyUsed
+ *   2. Not in sessionUsed (ignore weekly)
+ *   3. Anything in pool (last resort)
+ */
+function pickRandom(
+  pool: Exercise[],
+  sessionUsed: Set<number>,
+  weeklyUsed: Set<number>,
+  ratings?: Map<number, number>
+): Exercise | undefined {
+  if (pool.length === 0) return undefined;
+
+  // Tier 1: prefer exercises unused both in session and week
+  let available = pool.filter(e => !sessionUsed.has(e.id) && !weeklyUsed.has(e.id));
+  // Tier 2: at least unused in current session
+  if (available.length === 0) available = pool.filter(e => !sessionUsed.has(e.id));
+  // Tier 3: anything in pool
+  if (available.length === 0) available = [...pool];
 
   if (ratings && ratings.size > 0) {
-    // Exclude exercises rated 1 (strongly disliked) unless no other options
     const liked = available.filter(e => (ratings.get(e.id) ?? 3) > 1);
     if (liked.length > 0) available = liked;
 
-    // Weight higher-rated exercises (4-5) to appear twice as often
     const weighted: Exercise[] = [];
     for (const ex of available) {
       weighted.push(ex);
@@ -150,7 +171,8 @@ function pickRandom(pool: Exercise[], usedIds: Set<number>, ratings?: Map<number
   }
 
   const pick = available[Math.floor(Math.random() * available.length)];
-  usedIds.add(pick.id);
+  sessionUsed.add(pick.id);
+  weeklyUsed.add(pick.id);
   return pick;
 }
 
@@ -206,28 +228,39 @@ export async function generateWorkout(params: {
   weekStart.setDate(today.getDate() + mondayOffset);
   const weekStartStr = weekStart.toISOString().split("T")[0];
 
-  const weeklyUsed = await getWeeklyUsedExerciseIds(weekStartStr);
-  const usedIds = sessionUsedIds ?? new Set<number>(weeklyUsed);
-  weeklyUsed.forEach(id => usedIds.add(id));
+  const weeklyUsedArr = await getWeeklyUsedExerciseIds(weekStartStr);
+  // Weekly-used set: shared across calls, mutated by pickRandom
+  const weeklyUsed = new Set<number>(weeklyUsedArr);
+  // Session-used set: tracks what's used in THIS generated workout (prevents duplicates within same workout)
+  const sessionUsed = sessionUsedIds ?? new Set<number>();
 
   const ratings = await getExerciseRatings();
   const diffCond = difficultyFilter(difficultyLevel);
   const equipCond = equipmentFilter(equipment);
 
-  async function getPool(slot: SlotFilter) {
+  async function getPool(slot: SlotFilter, relaxEquipment = false): Promise<Exercise[]> {
     const conditions = [diffCond, muscleFilter(slot.muscles)];
-    if (equipCond) conditions.push(equipCond);
+    if (!relaxEquipment && equipCond) conditions.push(equipCond);
     if (slot.isCompound) conditions.push(eq(exercisesTable.isCompound, true));
     return db.select().from(exercisesTable).where(and(...conditions));
   }
 
-  const compoundPool = await getPool(layout.compound);
-  const compoundEx = pickRandom(compoundPool, usedIds, ratings);
+  async function pickForSlot(slot: SlotFilter): Promise<Exercise | undefined> {
+    // Try with equipment constraint first
+    let pool = await getPool(slot, false);
+    let ex = pickRandom(pool, sessionUsed, weeklyUsed, ratings);
+    if (ex) return ex;
+    // Fallback: relax equipment restriction
+    pool = await getPool(slot, true);
+    ex = pickRandom(pool, sessionUsed, weeklyUsed, ratings);
+    return ex;
+  }
+
+  const compoundEx = await pickForSlot(layout.compound);
 
   let compound2Ex: Exercise | undefined;
   if (layout.compound2) {
-    const pool2 = await getPool(layout.compound2);
-    compound2Ex = pickRandom(pool2, usedIds, ratings);
+    compound2Ex = await pickForSlot(layout.compound2);
   }
 
   const circuits: { circuitNumber: number; exercises: { exercise: Exercise; lastLog: Awaited<ReturnType<typeof getLastLog>>; suggestedSets: number; suggestedReps: number }[] }[] = [];
@@ -236,11 +269,24 @@ export async function generateWorkout(params: {
     const circuit = layout.circuits[i];
     const circuitExercises = [];
     for (const slot of circuit.slots) {
-      const pool = await getPool(slot);
-      const ex = pickRandom(pool, usedIds, ratings);
+      const ex = await pickForSlot(slot);
       if (ex) {
         const lastLog = await getLastLog(ex.id);
         circuitExercises.push({ exercise: ex, lastLog, suggestedSets: 3, suggestedReps: 8 });
+      }
+    }
+    // Ensure each circuit always has exactly 2 exercises (pad with any unused if needed)
+    if (circuitExercises.length < circuit.slots.length) {
+      const needed = circuit.slots.length - circuitExercises.length;
+      // Use first slot muscle group as fallback
+      const fallbackSlot = circuit.slots[0];
+      for (let j = 0; j < needed; j++) {
+        const fallbackPool = await getPool(fallbackSlot, true);
+        const fallbackEx = pickRandom(fallbackPool, sessionUsed, weeklyUsed, ratings);
+        if (fallbackEx) {
+          const lastLog = await getLastLog(fallbackEx.id);
+          circuitExercises.push({ exercise: fallbackEx, lastLog, suggestedSets: 3, suggestedReps: 8 });
+        }
       }
     }
     circuits.push({ circuitNumber: i + 1, exercises: circuitExercises });

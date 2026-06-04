@@ -175,7 +175,7 @@ function ExerciseLogItem({ session, exerciseData }: { session: any; exerciseData
       { sessionId: session.id, data: { exerciseId: exercise.id, direction: dir } },
       {
         onSuccess: () => {
-          queryClient.invalidateQueries({ queryKey: ["/api/sessions", session.id] });
+          queryClient.invalidateQueries({ queryKey: [`/api/sessions/${session.id}`] });
           setReplacingDir(null);
         },
         onError: () => setReplacingDir(null),
@@ -347,7 +347,7 @@ function SessionDetails({ sessionId }: { sessionId: number }) {
     if (!result.canceled) {
       updateSessionMut.mutate(
         { sessionId: session.id, data: { photoUri: result.assets[0].uri } },
-        { onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/sessions", session.id] }) }
+        { onSuccess: () => queryClient.invalidateQueries({ queryKey: [`/api/sessions/${session.id}`] }) }
       );
     }
   };
@@ -372,7 +372,8 @@ function SessionDetails({ sessionId }: { sessionId: number }) {
       { sessionId: session.id },
       {
         onSuccess: () => {
-          queryClient.invalidateQueries({ queryKey: ["/api/sessions", session.id] });
+          queryClient.invalidateQueries({ queryKey: [`/api/sessions/${session.id}`] });
+          queryClient.invalidateQueries({ queryKey: ["/api/sessions"] });
         },
       }
     );
@@ -415,6 +416,15 @@ function SessionDetails({ sessionId }: { sessionId: number }) {
           </View>
         </View>
 
+        {session.photoUri ? (
+          <Image source={{ uri: session.photoUri }} style={styles.shImage} />
+        ) : (
+          <TouchableOpacity style={[styles.shPhotoBtn, { borderColor: colors.border }]} onPress={handlePickImage}>
+            <Feather name="camera" size={20} color={colors.mutedForeground} />
+            <Text style={[styles.shPhotoBtnText, { color: colors.mutedForeground }]}>Add Photo</Text>
+          </TouchableOpacity>
+        )}
+
         {/* Randomize Workout button */}
         {!session.isCompleted && (
           <TouchableOpacity
@@ -430,15 +440,6 @@ function SessionDetails({ sessionId }: { sessionId: number }) {
                 <Text style={[styles.randomizeBtnText, { color: colors.foreground }]}>Randomize Workout</Text>
               </>
             )}
-          </TouchableOpacity>
-        )}
-
-        {session.photoUri ? (
-          <Image source={{ uri: session.photoUri }} style={styles.shImage} />
-        ) : (
-          <TouchableOpacity style={[styles.shPhotoBtn, { borderColor: colors.border }]} onPress={handlePickImage}>
-            <Feather name="camera" size={20} color={colors.mutedForeground} />
-            <Text style={[styles.shPhotoBtnText, { color: colors.mutedForeground }]}>Add Photo</Text>
           </TouchableOpacity>
         )}
       </View>
