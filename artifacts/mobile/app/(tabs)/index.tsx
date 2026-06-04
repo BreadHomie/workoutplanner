@@ -21,6 +21,7 @@ const PERIOD_OPTIONS = [
   { value: "weekly", label: "Week" },
   { value: "monthly", label: "Month" },
 ];
+const EQUIPMENT_OPTIONS = ["Full Gym", "Bodyweight", "Dumbbells"];
 
 const COUNT_MAX: Record<string, number> = { daily: 30, weekly: 12, monthly: 6 };
 
@@ -85,17 +86,29 @@ export default function GenerateScreen() {
   const [period, setPeriod] = useState<string>("weekly");
   const [count, setCount] = useState<number>(1);
   const [startDate, setStartDate] = useState<Date>(new Date());
+  const [equipment, setEquipment] = useState<string[]>(["Full Gym"]);
 
   useEffect(() => {
     if (profile) {
       setDifficulty(profile.difficultyLevel);
       setSplit(profile.preferredSplit);
       if (profile.targetCadence) setCadence(profile.targetCadence);
+      if (profile.equipment && profile.equipment.length > 0) setEquipment(profile.equipment);
     }
   }, [profile]);
 
   // Reset count to 1 when period changes
   useEffect(() => { setCount(1); }, [period]);
+
+  const toggleEquipment = (opt: string) => {
+    setEquipment(prev => {
+      if (prev.includes(opt)) {
+        const next = prev.filter(e => e !== opt);
+        return next.length === 0 ? [opt] : next; // always keep at least one selected
+      }
+      return [...prev, opt];
+    });
+  };
 
   const handleGenerate = async () => {
     if (!profile) return;
@@ -104,6 +117,7 @@ export default function GenerateScreen() {
         difficultyLevel: difficulty as UpdateProfileInputDifficultyLevel,
         preferredSplit: split,
         targetCadence: cadence,
+        equipment: equipment as any,
       },
     });
     generateWorkoutMut.mutate(
@@ -113,7 +127,7 @@ export default function GenerateScreen() {
           count,
           startDate: format(startDate, "yyyy-MM-dd"),
           difficultyLevel: difficulty as GeneratePlanInputDifficultyLevel,
-          equipment: profile.equipment,
+          equipment: equipment,
           preferredSplit: split,
           targetCadence: cadence,
         },
@@ -174,6 +188,26 @@ export default function GenerateScreen() {
               <Text style={[styles.gridBtnText, { color: split === s ? colors.primaryForeground : colors.secondaryForeground }]}>{s}</Text>
             </TouchableOpacity>
           ))}
+        </View>
+
+        <Text style={[styles.label, { color: colors.foreground, marginTop: 16 }]}>Equipment Availability</Text>
+        <View style={styles.gridWrap}>
+          {EQUIPMENT_OPTIONS.map(opt => {
+            const selected = equipment.includes(opt);
+            return (
+              <TouchableOpacity
+                key={opt}
+                onPress={() => toggleEquipment(opt)}
+                style={[styles.equipBtn, {
+                  backgroundColor: selected ? colors.primary : colors.secondary,
+                  borderColor: selected ? colors.primary : colors.border,
+                }]}
+              >
+                {selected && <Feather name="check" size={12} color={colors.primaryForeground} style={{ marginRight: 4 }} />}
+                <Text style={[styles.equipBtnText, { color: selected ? colors.primaryForeground : colors.secondaryForeground }]}>{opt}</Text>
+              </TouchableOpacity>
+            );
+          })}
         </View>
 
         <Text style={[styles.label, { color: colors.foreground, marginTop: 16 }]}>Days per week</Text>
@@ -273,6 +307,11 @@ const styles = StyleSheet.create({
   gridWrap: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   gridBtn: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 20 },
   gridBtnText: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
+  equipBtn: {
+    flexDirection: "row", alignItems: "center",
+    paddingHorizontal: 16, paddingVertical: 10, borderRadius: 20, borderWidth: 1.5,
+  },
+  equipBtnText: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
   daysRow: { flexDirection: "row", gap: 8, flexWrap: "wrap" },
   dayChip: { width: 40, height: 40, borderRadius: 20, justifyContent: "center", alignItems: "center" },
   dayChipText: { fontSize: 15, fontFamily: "Inter_700Bold" },

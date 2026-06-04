@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { and, desc, eq, inArray } from "drizzle-orm";
 import { db } from "@workspace/db";
-import { exercisesTable, sessionLogsTable } from "@workspace/db";
+import { exercisesTable, sessionLogsTable, workoutSessionsTable } from "@workspace/db";
 
 const router = Router();
 
@@ -49,6 +49,35 @@ router.get("/exercises", async (req, res): Promise<void> => {
   res.json(exercises);
 });
 
+router.post("/exercises", async (req, res): Promise<void> => {
+  const { name, equipment, difficulty, isCompound, hitChest, hitBack, hitLegs, hitCore, hitArm, hitShoulder, classification } = req.body as {
+    name: string; equipment: string; difficulty: string;
+    isCompound?: boolean; hitChest?: boolean; hitBack?: boolean; hitLegs?: boolean;
+    hitCore?: boolean; hitArm?: boolean; hitShoulder?: boolean; classification?: string;
+  };
+
+  if (!name || !equipment || !difficulty) {
+    res.status(400).json({ error: "name, equipment, and difficulty are required" });
+    return;
+  }
+
+  const [exercise] = await db.insert(exercisesTable).values({
+    name,
+    equipment,
+    difficulty,
+    isCompound: isCompound ?? false,
+    hitChest: hitChest ?? false,
+    hitBack: hitBack ?? false,
+    hitLegs: hitLegs ?? false,
+    hitCore: hitCore ?? false,
+    hitArm: hitArm ?? false,
+    hitShoulder: hitShoulder ?? false,
+    classification: classification ?? equipment,
+  }).returning();
+
+  res.status(201).json(exercise);
+});
+
 router.get("/exercises/:id/last-log", async (req, res): Promise<void> => {
   const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const exerciseId = parseInt(raw, 10);
@@ -71,6 +100,32 @@ router.get("/exercises/:id/last-log", async (req, res): Promise<void> => {
   }
 
   res.json(log);
+});
+
+router.get("/exercises/:id/logs", async (req, res): Promise<void> => {
+  const exerciseId = parseInt(req.params.id, 10);
+  if (isNaN(exerciseId)) { res.status(400).json({ error: "Invalid exercise ID" }); return; }
+
+  const logs = await db
+    .select({
+      id: sessionLogsTable.id,
+      sessionId: sessionLogsTable.sessionId,
+      scheduledDate: workoutSessionsTable.scheduledDate,
+      weightUsed: sessionLogsTable.weightUsed,
+      sets: sessionLogsTable.sets,
+      reps: sessionLogsTable.reps,
+      notes: sessionLogsTable.notes,
+      rating: sessionLogsTable.rating,
+      setCompletions: sessionLogsTable.setCompletions,
+      loggedAt: sessionLogsTable.loggedAt,
+    })
+    .from(sessionLogsTable)
+    .leftJoin(workoutSessionsTable, eq(sessionLogsTable.sessionId, workoutSessionsTable.id))
+    .where(eq(sessionLogsTable.exerciseId, exerciseId))
+    .orderBy(desc(sessionLogsTable.loggedAt))
+    .limit(30);
+
+  res.json(logs);
 });
 
 export default router;

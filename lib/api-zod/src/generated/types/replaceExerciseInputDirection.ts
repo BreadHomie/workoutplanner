@@ -10,7 +10,6 @@ export type ReplaceExerciseInputDirection = typeof ReplaceExerciseInputDirection
 
 
 export const ReplaceExerciseInputDirection = {
+  same: 'same',
   random: 'random',
-  easier: 'easier',
-  harder: 'harder',
 } as const;

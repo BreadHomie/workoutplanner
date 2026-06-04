@@ -11,6 +11,9 @@ import { useQueryClient } from "@tanstack/react-query";
 import { router } from "expo-router";
 import { useColors } from "@/hooks/useColors";
 
+const SELECTED_GREEN = "#22c55e";
+const SELECTED_GREEN_BG = "#22c55e28";
+
 export default function ScheduleScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
@@ -47,6 +50,15 @@ export default function ScheduleScreen() {
     setExpandedDay(prev => (prev === dateStr ? null : dateStr));
   };
 
+  const handleDeselect = (dateStr: string) => {
+    setSelectedDates(prev => {
+      const next = new Set(prev);
+      next.delete(dateStr);
+      return next;
+    });
+    setExpandedDay(null);
+  };
+
   const handleSave = () => {
     saveScheduleBulk.mutate(
       { data: { yearMonth: format(currentMonth, "yyyy-MM"), dates: [...selectedDates].sort() } },
@@ -63,7 +75,6 @@ export default function ScheduleScreen() {
 
   const targetCadence = profile?.targetCadence ?? 3;
 
-  // Weekly cadence stats (week starts Monday)
   const weekStats = (() => {
     const stats: { label: string; completed: number; planned: number }[] = [];
     const monthStart = startOfMonth(currentMonth);
@@ -88,11 +99,9 @@ export default function ScheduleScreen() {
     return stats;
   })();
 
-  // Calendar grid — weeks start Monday
   const calendarDays = (() => {
     const monthStart = startOfMonth(currentMonth);
     const daysInMonth = getDaysInMonth(currentMonth);
-    // Monday=0 offset: (getDay + 6) % 7
     const startOffset = (getDay(monthStart) + 6) % 7;
     const days: (Date | null)[] = Array(startOffset).fill(null);
     for (let i = 1; i <= daysInMonth; i++) {
@@ -138,7 +147,6 @@ export default function ScheduleScreen() {
           ))}
         </View>
 
-        {/* Render one row per week for proper alignment */}
         {Array.from({ length: calendarDays.length / 7 }, (_, wi) => (
           <View key={wi} style={styles.weekRow}>
             {calendarDays.slice(wi * 7, wi * 7 + 7).map((date, di) => {
@@ -155,7 +163,7 @@ export default function ScheduleScreen() {
               let bgColor = colors.card;
               if (isCompleted) bgColor = colors.primary;
               else if (hasSession) bgColor = colors.primary + "70";
-              else if (isSelected) bgColor = colors.secondary;
+              else if (isSelected) bgColor = SELECTED_GREEN_BG;
 
               const textColor = isCompleted || hasSession ? colors.primaryForeground : colors.foreground;
 
@@ -166,11 +174,15 @@ export default function ScheduleScreen() {
                   style={[
                     styles.dayCell,
                     { backgroundColor: bgColor },
+                    isSelected && !hasSession && { borderColor: SELECTED_GREEN + "60", borderWidth: 1 },
                     isToday && !isSelected && !hasSession && { borderColor: colors.primary, borderWidth: 1.5 },
                     isExpanded && { borderColor: colors.primary, borderWidth: 2 },
                   ]}
                 >
-                  <Text style={[styles.dayText, { color: textColor }]}>{format(date, "d")}</Text>
+                  <Text style={[styles.dayText, {
+                    color: isSelected && !hasSession ? SELECTED_GREEN : textColor,
+                    fontFamily: isSelected && !hasSession ? "Inter_700Bold" : "Inter_500Medium",
+                  }]}>{format(date, "d")}</Text>
                   {isCompleted && (
                     <View style={[styles.dot, { backgroundColor: colors.primaryForeground + "cc" }]} />
                   )}
@@ -192,14 +204,14 @@ export default function ScheduleScreen() {
           <Text style={[styles.legendText, { color: colors.mutedForeground }]}>Workout</Text>
         </View>
         <View style={styles.legendItem}>
-          <View style={[styles.legendDot, { backgroundColor: colors.secondary }]} />
+          <View style={[styles.legendDot, { backgroundColor: SELECTED_GREEN_BG, borderWidth: 1, borderColor: SELECTED_GREEN + "60" }]} />
           <Text style={[styles.legendText, { color: colors.mutedForeground }]}>Scheduled</Text>
         </View>
       </View>
 
       {/* Expanded day panel */}
       {expandedDay && (
-        <View style={[styles.dayPanel, { backgroundColor: colors.card, borderColor: expandedIsSelected ? colors.primary + "50" : colors.border }]}>
+        <View style={[styles.dayPanel, { backgroundColor: colors.card, borderColor: expandedIsSelected ? SELECTED_GREEN + "50" : colors.border }]}>
           <View style={styles.dayPanelHeader}>
             <Text style={[styles.dayPanelDate, { color: colors.foreground }]}>
               {format(parseISO(expandedDay), "EEEE, MMMM d")}
@@ -211,9 +223,9 @@ export default function ScheduleScreen() {
 
           <View style={styles.dayBadgeRow}>
             {expandedIsSelected ? (
-              <View style={[styles.dayBadge, { backgroundColor: colors.primary + "20" }]}>
-                <Feather name="calendar" size={12} color={colors.primary} />
-                <Text style={[styles.dayBadgeText, { color: colors.primary }]}>Workout Day</Text>
+              <View style={[styles.dayBadge, { backgroundColor: SELECTED_GREEN + "20" }]}>
+                <Feather name="calendar" size={12} color={SELECTED_GREEN} />
+                <Text style={[styles.dayBadgeText, { color: SELECTED_GREEN }]}>Workout Day</Text>
               </View>
             ) : (
               <View style={[styles.dayBadge, { backgroundColor: colors.muted }]}>
@@ -244,18 +256,38 @@ export default function ScheduleScreen() {
                 <Feather name="layers" size={14} color={colors.primaryForeground} />
                 <Text style={[styles.dayActionBtnText, { color: colors.primaryForeground }]}>Open in My Workouts</Text>
               </TouchableOpacity>
+              {expandedIsSelected && (
+                <TouchableOpacity
+                  style={[styles.deselBtn, { backgroundColor: "#ef444415", borderColor: "#ef444430" }]}
+                  onPress={() => handleDeselect(expandedDay)}
+                >
+                  <Feather name="x-circle" size={14} color="#ef4444" />
+                  <Text style={[styles.deselBtnText, { color: "#ef4444" }]}>Remove from Schedule</Text>
+                </TouchableOpacity>
+              )}
             </View>
           ) : (
-            <Text style={[styles.dayPanelHint, { color: colors.mutedForeground }]}>
-              {expandedIsSelected
-                ? "Tap again to remove this day from your schedule."
-                : "Tap this day to add it to your workout schedule."}
-            </Text>
+            <View style={{ gap: 8 }}>
+              <Text style={[styles.dayPanelHint, { color: colors.mutedForeground }]}>
+                {expandedIsSelected
+                  ? "This day is marked as a workout day."
+                  : "Tap this day to add it to your workout schedule."}
+              </Text>
+              {expandedIsSelected && (
+                <TouchableOpacity
+                  style={[styles.deselBtn, { backgroundColor: "#ef444415", borderColor: "#ef444430" }]}
+                  onPress={() => handleDeselect(expandedDay)}
+                >
+                  <Feather name="x-circle" size={14} color="#ef4444" />
+                  <Text style={[styles.deselBtnText, { color: "#ef4444" }]}>Remove from Schedule</Text>
+                </TouchableOpacity>
+              )}
+            </View>
           )}
         </View>
       )}
 
-      {/* Save button — ABOVE weekly progress */}
+      {/* Save button */}
       <View style={[styles.saveSection, { borderColor: colors.border }]}>
         <Text style={[styles.selectedText, { color: colors.mutedForeground }]}>
           {selectedDates.size} {selectedDates.size === 1 ? "day" : "days"} selected this month
@@ -284,7 +316,6 @@ export default function ScheduleScreen() {
             <View key={i} style={styles.weekStatRow}>
               <Text style={[styles.weekStatLabel, { color: colors.mutedForeground }]}>{ws.label}</Text>
               <View style={styles.weekStatRight}>
-                {/* Planned bar */}
                 <View style={styles.weekStatBarRow}>
                   <Text style={[styles.weekStatBarLabel, { color: colors.mutedForeground }]}>Planned</Text>
                   <View style={[styles.weekStatBar, { backgroundColor: colors.muted }]}>
@@ -295,7 +326,6 @@ export default function ScheduleScreen() {
                   </View>
                   <Text style={[styles.weekStatCount, { color: colors.mutedForeground }]}>{ws.planned}</Text>
                 </View>
-                {/* Completed bar */}
                 <View style={styles.weekStatBarRow}>
                   <Text style={[styles.weekStatBarLabel, { color: "#22c55e" }]}>Done</Text>
                   <View style={[styles.weekStatBar, { backgroundColor: colors.muted }]}>
@@ -330,7 +360,7 @@ const styles = StyleSheet.create({
   weekRow: { flexDirection: "row", justifyContent: "space-around", marginBottom: 6 },
   dayCellEmpty: { width: 38, height: 38 },
   dayCell: { width: 38, height: 38, borderRadius: 10, justifyContent: "center", alignItems: "center" },
-  dayText: { fontSize: 14, fontFamily: "Inter_500Medium" },
+  dayText: { fontSize: 14 },
   dot: { width: 4, height: 4, borderRadius: 2, position: "absolute", bottom: 3 },
 
   legend: { flexDirection: "row", justifyContent: "center", gap: 16, marginTop: 12, marginBottom: 4 },
@@ -338,9 +368,7 @@ const styles = StyleSheet.create({
   legendDot: { width: 10, height: 10, borderRadius: 5 },
   legendText: { fontSize: 11, fontFamily: "Inter_500Medium" },
 
-  dayPanel: {
-    marginHorizontal: 12, marginTop: 12, borderRadius: 16, borderWidth: 1, padding: 16, gap: 10,
-  },
+  dayPanel: { marginHorizontal: 12, marginTop: 12, borderRadius: 16, borderWidth: 1, padding: 16, gap: 10 },
   dayPanelHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   dayPanelDate: { fontSize: 16, fontFamily: "Inter_700Bold" },
   dayBadgeRow: { flexDirection: "row", gap: 8 },
@@ -351,6 +379,8 @@ const styles = StyleSheet.create({
   dayPanelHint: { fontSize: 13, fontFamily: "Inter_400Regular", lineHeight: 18 },
   dayActionBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 10, borderRadius: 10, marginTop: 2 },
   dayActionBtnText: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
+  deselBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 10, borderRadius: 10, borderWidth: 1 },
+  deselBtnText: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
 
   saveSection: { paddingHorizontal: 20, marginTop: 16, marginBottom: 4, gap: 12 },
   selectedText: { fontSize: 13, fontFamily: "Inter_500Medium", textAlign: "center" },

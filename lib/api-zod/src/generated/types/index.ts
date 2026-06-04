@@ -8,10 +8,14 @@
 
 export * from './addSessionLogInput';
 export * from './circuit';
+export * from './createExerciseInput';
+export * from './createExerciseInputDifficulty';
+export * from './createExerciseInputEquipment';
 export * from './createScheduleEntryInput';
 export * from './createSessionInput';
 export * from './exercise';
 export * from './exerciseDifficulty';
+export * from './exerciseLogEntry';
 export * from './exerciseWithHistory';
 export * from './generatedWorkout';
 export * from './generatePlanInput';
@@ -23,6 +27,7 @@ export * from './listExercisesParams';
 export * from './listSessionsParams';
 export * from './personalRecord';
 export * from './plannedSession';
+export * from './regenerateWorkout200';
 export * from './replaceExerciseInput';
 export * from './replaceExerciseInputDirection';
 export * from './replaceExerciseResult';

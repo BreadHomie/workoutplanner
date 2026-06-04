@@ -97,6 +97,44 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/Exercise"
+    post:
+      operationId: createExercise
+      tags: [exercises]
+      summary: Create a new exercise
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateExerciseInput"
+      responses:
+        "201":
+          description: Created exercise
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Exercise"
+
+  /exercises/{exerciseId}/logs:
+    get:
+      operationId: getExerciseLogs
+      tags: [exercises]
+      summary: Get all logs for an exercise (weight history)
+      parameters:
+        - name: exerciseId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Exercise logs with session dates
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ExerciseLogEntry"
 
   /workouts/generate:
     post:
@@ -297,6 +335,29 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ReplaceExerciseResult"
+
+  /sessions/{sessionId}/regenerate:
+    post:
+      operationId: regenerateWorkout
+      tags: [sessions]
+      summary: Regenerate all exercises for a session, keeping the same split
+      parameters:
+        - name: sessionId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Session regenerated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  sessionId:
+                    type: integer
+                required: [sessionId]
 
   /sessions/{sessionId}/logs/{logId}/complete:
     post:
@@ -783,6 +844,65 @@ components:
         isCompleted:
           type: boolean
 
+    CreateExerciseInput:
+      type: object
+      properties:
+        name:
+          type: string
+        equipment:
+          type: string
+          enum: [Full Gym, Bodyweight, Dumbbells]
+        difficulty:
+          type: string
+          enum: [Beginner, Intermediate, Advanced]
+        isCompound:
+          type: boolean
+        hitChest:
+          type: boolean
+        hitBack:
+          type: boolean
+        hitLegs:
+          type: boolean
+        hitCore:
+          type: boolean
+        hitArm:
+          type: boolean
+        hitShoulder:
+          type: boolean
+        classification:
+          type: string
+      required: [name, equipment, difficulty]
+
+    ExerciseLogEntry:
+      type: object
+      properties:
+        id:
+          type: integer
+        sessionId:
+          type: integer
+        scheduledDate:
+          type: string
+          nullable: true
+        weightUsed:
+          type: number
+          nullable: true
+        sets:
+          type: integer
+        reps:
+          type: integer
+        notes:
+          type: string
+          nullable: true
+        rating:
+          type: integer
+          nullable: true
+        setCompletions:
+          type: string
+          nullable: true
+        loggedAt:
+          type: string
+      required: [id, sessionId, sets, reps, loggedAt]
+
     ReplaceExerciseInput:
       type: object
       properties:
@@ -791,7 +911,7 @@ components:
           description: ID of the exercise to replace
         direction:
           type: string
-          enum: [random, easier, harder]
+          enum: [same, random]
       required: [exerciseId, direction]
 
     ReplaceExerciseResult:

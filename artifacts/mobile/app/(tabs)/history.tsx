@@ -1,6 +1,7 @@
 import {
   useListSessions, useGetSession, useAddSessionLog, useUpdateSessionLog,
-  useCompleteWorkout, useCompleteExercise, useUpdateSession, useReplaceExercise
+  useCompleteWorkout, useCompleteExercise, useUpdateSession, useReplaceExercise,
+  useRegenerateWorkout
 } from "@workspace/api-client-react";
 import * as ImagePicker from "expo-image-picker";
 import * as Haptics from "expo-haptics";
@@ -96,7 +97,7 @@ function ExerciseLogItem({ session, exerciseData }: { session: any; exerciseData
   const [rating, setRating] = useState<number | null>(existingLog?.rating ?? null);
   const [isCompleted, setIsCompleted] = useState(existingLog?.isCompleted || false);
   const [showToast, setShowToast] = useState(false);
-  const [isReplacing, setIsReplacing] = useState(false);
+  const [replacingDir, setReplacingDir] = useState<"same" | "random" | null>(null);
   const toastOpacity = useRef(new Animated.Value(0)).current;
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -167,17 +168,17 @@ function ExerciseLogItem({ session, exerciseData }: { session: any; exerciseData
     }
   };
 
-  const handleSwap = () => {
-    setIsReplacing(true);
+  const handleReplace = (dir: "same" | "random") => {
+    setReplacingDir(dir);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     replaceEx.mutate(
-      { sessionId: session.id, data: { exerciseId: exercise.id, direction: "random" } },
+      { sessionId: session.id, data: { exerciseId: exercise.id, direction: dir } },
       {
         onSuccess: () => {
           queryClient.invalidateQueries({ queryKey: ["/api/sessions", session.id] });
-          setIsReplacing(false);
+          setReplacingDir(null);
         },
-        onError: () => setIsReplacing(false),
+        onError: () => setReplacingDir(null),
       }
     );
   };
@@ -192,7 +193,7 @@ function ExerciseLogItem({ session, exerciseData }: { session: any; exerciseData
       borderColor: isCompleted ? colors.primary + "50" : colors.border,
     }]}>
       {/* Collapsed header */}
-      <TouchableOpacity onPress={() => setExpanded(e => !e)} activeOpacity={0.7} disabled={isReplacing}>
+      <TouchableOpacity onPress={() => setExpanded(e => !e)} activeOpacity={0.7} disabled={replacingDir !== null}>
         <View style={styles.exHeader}>
           <TouchableOpacity
             onPress={() => handleComplete()}
@@ -240,7 +241,7 @@ function ExerciseLogItem({ session, exerciseData }: { session: any; exerciseData
 
       {expanded && (
         <View style={[styles.exBody, { borderTopColor: colors.border }]}>
-          {/* Per-set rows: each has own weight input */}
+          {/* Per-set rows */}
           <View style={styles.setsTable}>
             {sets.map((s, idx) => (
               <View key={idx} style={[styles.setRow, idx < sets.length - 1 && { borderBottomColor: colors.border, borderBottomWidth: 1 }]}>
@@ -287,21 +288,37 @@ function ExerciseLogItem({ session, exerciseData }: { session: any; exerciseData
             numberOfLines={2}
           />
 
-          {/* Swap button */}
-          <TouchableOpacity
-            style={[styles.swapBtn, { backgroundColor: colors.secondary }]}
-            onPress={handleSwap}
-            disabled={isReplacing}
-          >
-            {isReplacing ? (
-              <ActivityIndicator size="small" color={colors.foreground} />
-            ) : (
-              <>
-                <Feather name="shuffle" size={14} color={colors.foreground} />
-                <Text style={[styles.swapBtnText, { color: colors.foreground }]}>Swap Exercise</Text>
-              </>
-            )}
-          </TouchableOpacity>
+          {/* Swap + Random buttons */}
+          <View style={styles.swapRow}>
+            <TouchableOpacity
+              style={[styles.swapBtn, { flex: 1, backgroundColor: colors.secondary }]}
+              onPress={() => handleReplace("same")}
+              disabled={replacingDir !== null}
+            >
+              {replacingDir === "same" ? (
+                <ActivityIndicator size="small" color={colors.foreground} />
+              ) : (
+                <>
+                  <Feather name="refresh-cw" size={14} color={colors.foreground} />
+                  <Text style={[styles.swapBtnText, { color: colors.foreground }]}>Swap</Text>
+                </>
+              )}
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.swapBtn, { flex: 1, backgroundColor: colors.secondary }]}
+              onPress={() => handleReplace("random")}
+              disabled={replacingDir !== null}
+            >
+              {replacingDir === "random" ? (
+                <ActivityIndicator size="small" color={colors.foreground} />
+              ) : (
+                <>
+                  <Feather name="shuffle" size={14} color={colors.foreground} />
+                  <Text style={[styles.swapBtnText, { color: colors.foreground }]}>Random</Text>
+                </>
+              )}
+            </TouchableOpacity>
+          </View>
         </View>
       )}
     </View>
@@ -314,6 +331,7 @@ function SessionDetails({ sessionId }: { sessionId: number }) {
   const { data: session, isLoading } = useGetSession(sessionId);
   const updateSessionMut = useUpdateSession();
   const completeWorkoutMut = useCompleteWorkout();
+  const regenerateMut = useRegenerateWorkout();
 
   const [showRewardModal, setShowRewardModal] = useState(false);
 
@@ -343,6 +361,18 @@ function SessionDetails({ sessionId }: { sessionId: number }) {
           setShowRewardModal(true);
           queryClient.invalidateQueries({ queryKey: ["/api/sessions"] });
           setTimeout(() => setShowRewardModal(false), 2000);
+        },
+      }
+    );
+  };
+
+  const handleRandomize = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    regenerateMut.mutate(
+      { sessionId: session.id },
+      {
+        onSuccess: () => {
+          queryClient.invalidateQueries({ queryKey: ["/api/sessions", session.id] });
         },
       }
     );
@@ -384,6 +414,24 @@ function SessionDetails({ sessionId }: { sessionId: number }) {
             </Text>
           </View>
         </View>
+
+        {/* Randomize Workout button */}
+        {!session.isCompleted && (
+          <TouchableOpacity
+            style={[styles.randomizeBtn, { backgroundColor: colors.secondary, borderColor: colors.border }]}
+            onPress={handleRandomize}
+            disabled={regenerateMut.isPending}
+          >
+            {regenerateMut.isPending ? (
+              <ActivityIndicator size="small" color={colors.foreground} />
+            ) : (
+              <>
+                <Feather name="shuffle" size={14} color={colors.foreground} />
+                <Text style={[styles.randomizeBtnText, { color: colors.foreground }]}>Randomize Workout</Text>
+              </>
+            )}
+          </TouchableOpacity>
+        )}
 
         {session.photoUri ? (
           <Image source={{ uri: session.photoUri }} style={styles.shImage} />
@@ -500,6 +548,12 @@ const styles = StyleSheet.create({
   shPhotoBtn: { width: "100%", height: 64, borderRadius: 10, borderWidth: 1, borderStyle: "dashed", justifyContent: "center", alignItems: "center", flexDirection: "row", gap: 8 },
   shPhotoBtnText: { fontSize: 14, fontFamily: "Inter_500Medium" },
 
+  randomizeBtn: {
+    flexDirection: "row", alignItems: "center", justifyContent: "center",
+    gap: 8, height: 40, borderRadius: 10, borderWidth: 1, marginBottom: 12,
+  },
+  randomizeBtnText: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
+
   exCard: { borderRadius: 12, borderWidth: 1, overflow: "hidden" },
   exHeader: { flexDirection: "row", alignItems: "center", padding: 14 },
   checkBtn: { marginRight: 12 },
@@ -528,9 +582,10 @@ const styles = StyleSheet.create({
     fontSize: 14, fontFamily: "Inter_400Regular", textAlignVertical: "top",
   },
 
+  swapRow: { flexDirection: "row", gap: 8 },
   swapBtn: {
     flexDirection: "row", alignItems: "center", justifyContent: "center",
-    gap: 8, paddingVertical: 10, borderRadius: 10,
+    gap: 6, paddingVertical: 10, borderRadius: 10,
   },
   swapBtnText: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
 

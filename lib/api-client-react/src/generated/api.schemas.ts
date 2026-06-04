@@ -213,13 +213,57 @@ export interface UpdateSessionLogInput {
   isCompleted?: boolean;
 }
 
+export type CreateExerciseInputEquipment = typeof CreateExerciseInputEquipment[keyof typeof CreateExerciseInputEquipment];
+
+
+export const CreateExerciseInputEquipment = {
+  Full_Gym: 'Full Gym',
+  Bodyweight: 'Bodyweight',
+  Dumbbells: 'Dumbbells',
+} as const;
+
+export type CreateExerciseInputDifficulty = typeof CreateExerciseInputDifficulty[keyof typeof CreateExerciseInputDifficulty];
+
+
+export const CreateExerciseInputDifficulty = {
+  Beginner: 'Beginner',
+  Intermediate: 'Intermediate',
+  Advanced: 'Advanced',
+} as const;
+
+export interface CreateExerciseInput {
+  name: string;
+  equipment: CreateExerciseInputEquipment;
+  difficulty: CreateExerciseInputDifficulty;
+  isCompound?: boolean;
+  hitChest?: boolean;
+  hitBack?: boolean;
+  hitLegs?: boolean;
+  hitCore?: boolean;
+  hitArm?: boolean;
+  hitShoulder?: boolean;
+  classification?: string;
+}
+
+export interface ExerciseLogEntry {
+  id: number;
+  sessionId: number;
+  scheduledDate?: string | null;
+  weightUsed?: number | null;
+  sets: number;
+  reps: number;
+  notes?: string | null;
+  rating?: number | null;
+  setCompletions?: string | null;
+  loggedAt: string;
+}
+
 export type ReplaceExerciseInputDirection = typeof ReplaceExerciseInputDirection[keyof typeof ReplaceExerciseInputDirection];
 
 
 export const ReplaceExerciseInputDirection = {
+  same: 'same',
   random: 'random',
-  easier: 'easier',
-  harder: 'harder',
 } as const;
 
 export interface ReplaceExerciseInput {
@@ -313,6 +357,10 @@ export const ListExercisesDifficulty = {
 
 export type ListSessionsParams = {
 limit?: number;
+};
+
+export type RegenerateWorkout200 = {
+  sessionId: number;
 };
 
 export type ResetWorkouts200 = {

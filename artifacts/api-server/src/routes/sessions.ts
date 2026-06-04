@@ -2,7 +2,7 @@ import { Router } from "express";
 import { and, count, desc, eq, inArray, or, sql } from "drizzle-orm";
 import { db } from "@workspace/db";
 import { workoutSessionsTable, sessionLogsTable, exercisesTable, userProfilesTable, scheduleTable } from "@workspace/db";
-import { getLastLog } from "../lib/workoutGenerator";
+import { getLastLog, generateWorkout } from "../lib/workoutGenerator";
 
 const router = Router();
 
@@ -148,7 +148,7 @@ router.post("/sessions/:sessionId/replace-exercise", async (req, res): Promise<v
   const sessionId = parseInt(raw, 10);
   if (isNaN(sessionId)) { res.status(400).json({ error: "Invalid session ID" }); return; }
 
-  const { exerciseId, direction } = req.body as { exerciseId: number; direction: "random" | "easier" | "harder" };
+  const { exerciseId, direction } = req.body as { exerciseId: number; direction: "same" | "random" };
   if (!exerciseId || !direction) { res.status(400).json({ error: "exerciseId and direction are required" }); return; }
 
   const [session] = await db.select().from(workoutSessionsTable).where(eq(workoutSessionsTable.id, sessionId));
@@ -162,15 +162,7 @@ router.post("/sessions/:sessionId/replace-exercise", async (req, res): Promise<v
 
   const diffLevels = ["Beginner", "Intermediate", "Advanced"];
   const idx = diffLevels.indexOf(currentEx.difficulty);
-
-  let targetDiffs: string[];
-  if (direction === "easier") {
-    targetDiffs = idx > 0 ? diffLevels.slice(0, idx) : ["Beginner"];
-  } else if (direction === "harder") {
-    targetDiffs = idx < 2 ? diffLevels.slice(idx + 1) : ["Advanced"];
-  } else {
-    targetDiffs = diffLevels.slice(0, idx + 1);
-  }
+  const targetDiffs = diffLevels.slice(0, Math.max(idx + 1, 1));
 
   const muscleConditions: ReturnType<typeof eq>[] = [];
   if (currentEx.hitChest) muscleConditions.push(eq(exercisesTable.hitChest, true));
@@ -179,7 +171,6 @@ router.post("/sessions/:sessionId/replace-exercise", async (req, res): Promise<v
   if (currentEx.hitCore) muscleConditions.push(eq(exercisesTable.hitCore, true));
   if (currentEx.hitArm) muscleConditions.push(eq(exercisesTable.hitArm, true));
   if (currentEx.hitShoulder) muscleConditions.push(eq(exercisesTable.hitShoulder, true));
-  if (muscleConditions.length === 0) { res.status(400).json({ error: "Cannot determine muscle group" }); return; }
 
   // Get all exercise IDs already in the plan (to exclude)
   const plan = JSON.parse(session.workoutPlanJson);
@@ -189,26 +180,29 @@ router.post("/sessions/:sessionId/replace-exercise", async (req, res): Promise<v
   plan.circuits?.forEach((c: any) => c.exercises?.forEach((e: any) => { if (e.exercise?.id) planIds.add(e.exercise.id); }));
   planIds.delete(exerciseId);
 
-  const buildConditions = (diffs: string[]) => {
-    const conds: ReturnType<typeof eq>[] = [
-      inArray(exercisesTable.difficulty, diffs) as any,
-      (muscleConditions.length === 1 ? muscleConditions[0] : or(...muscleConditions)) as any,
-    ];
-    if (currentEx.isCompound) conds.push(eq(exercisesTable.isCompound, true) as any);
+  // "same" = same muscle group; "random" = any exercise
+  const buildConditions = (useMuscle: boolean) => {
+    const conds: any[] = [inArray(exercisesTable.difficulty, targetDiffs) as any];
+    if (useMuscle && muscleConditions.length > 0) {
+      conds.push((muscleConditions.length === 1 ? muscleConditions[0] : or(...muscleConditions)) as any);
+      if (currentEx.isCompound) conds.push(eq(exercisesTable.isCompound, true) as any);
+    }
     if (equipment.length > 0) conds.push(inArray(exercisesTable.equipment, equipment) as any);
     return conds;
   };
 
-  let candidates = await db.select().from(exercisesTable).where(and(...buildConditions(targetDiffs)));
+  let candidates = await db.select().from(exercisesTable).where(and(...buildConditions(direction === "same")));
   candidates = candidates.filter(e => !planIds.has(e.id));
 
   if (candidates.length === 0) {
     // Relax difficulty constraint
-    const relaxed = [
-      (muscleConditions.length === 1 ? muscleConditions[0] : or(...muscleConditions)) as any,
-      ...(equipment.length > 0 ? [inArray(exercisesTable.equipment, equipment) as any] : []),
-    ];
-    candidates = (await db.select().from(exercisesTable).where(and(...relaxed))).filter(e => !planIds.has(e.id) && e.id !== exerciseId);
+    const relaxedConds: any[] = [];
+    if (direction === "same" && muscleConditions.length > 0) {
+      relaxedConds.push((muscleConditions.length === 1 ? muscleConditions[0] : or(...muscleConditions)) as any);
+    }
+    if (equipment.length > 0) relaxedConds.push(inArray(exercisesTable.equipment, equipment) as any);
+    candidates = (await db.select().from(exercisesTable).where(relaxedConds.length > 0 ? and(...relaxedConds) : undefined))
+      .filter(e => !planIds.has(e.id) && e.id !== exerciseId);
   }
 
   if (candidates.length === 0) { res.status(400).json({ error: "No replacement exercise found" }); return; }
@@ -258,6 +252,46 @@ router.post("/sessions/:sessionId/replace-exercise", async (req, res): Promise<v
     .where(eq(workoutSessionsTable.id, sessionId));
 
   res.json({ exercise: newEx, lastLog });
+});
+
+router.post("/sessions/:sessionId/regenerate", async (req, res): Promise<void> => {
+  const sessionId = parseInt(req.params.sessionId, 10);
+  if (isNaN(sessionId)) { res.status(400).json({ error: "Invalid session ID" }); return; }
+
+  const [session] = await db.select().from(workoutSessionsTable).where(eq(workoutSessionsTable.id, sessionId));
+  if (!session) { res.status(404).json({ error: "Session not found" }); return; }
+
+  const [profile] = await db.select().from(userProfilesTable).limit(1);
+
+  // Delete existing logs so the new plan starts fresh
+  await db.delete(sessionLogsTable).where(eq(sessionLogsTable.sessionId, sessionId));
+
+  const plan = await generateWorkout({
+    splitType: session.splitType,
+    splitVariant: session.splitVariant,
+    difficultyLevel: profile?.difficultyLevel ?? "Intermediate",
+    equipment: profile?.equipment ?? [],
+    scheduledDate: session.scheduledDate ?? undefined,
+  });
+
+  await db.update(workoutSessionsTable)
+    .set({ workoutPlanJson: JSON.stringify(plan), isCompleted: false, completedAt: null })
+    .where(eq(workoutSessionsTable.id, sessionId));
+
+  // Seed log stubs for new exercises
+  const stubs: { sessionId: number; exerciseId: number; sets: number; reps: number; weightUsed?: number }[] = [];
+  const addStub = async (item: any) => {
+    const lastLog = await getLastLog(item.exercise.id);
+    stubs.push({ sessionId, exerciseId: item.exercise.id, sets: item.suggestedSets ?? 3, reps: item.suggestedReps ?? 8, weightUsed: lastLog?.weightUsed ?? undefined });
+  };
+  if (plan.compound) await addStub(plan.compound);
+  if (plan.compound2) await addStub(plan.compound2);
+  for (const circuit of plan.circuits ?? []) {
+    for (const ex of circuit.exercises ?? []) await addStub(ex);
+  }
+  if (stubs.length > 0) await db.insert(sessionLogsTable).values(stubs);
+
+  res.json({ sessionId });
 });
 
 router.post("/sessions/:sessionId/logs", async (req, res): Promise<void> => {

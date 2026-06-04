@@ -85,6 +85,46 @@ export const ListExercisesResponse = zod.array(ListExercisesResponseItem)
 
 
 /**
+ * @summary Create a new exercise
+ */
+export const CreateExerciseBody = zod.object({
+  "name": zod.string(),
+  "equipment": zod.enum(['Full Gym', 'Bodyweight', 'Dumbbells']),
+  "difficulty": zod.enum(['Beginner', 'Intermediate', 'Advanced']),
+  "isCompound": zod.boolean().optional(),
+  "hitChest": zod.boolean().optional(),
+  "hitBack": zod.boolean().optional(),
+  "hitLegs": zod.boolean().optional(),
+  "hitCore": zod.boolean().optional(),
+  "hitArm": zod.boolean().optional(),
+  "hitShoulder": zod.boolean().optional(),
+  "classification": zod.string().optional()
+})
+
+
+/**
+ * @summary Get all logs for an exercise (weight history)
+ */
+export const GetExerciseLogsParams = zod.object({
+  "exerciseId": zod.coerce.number()
+})
+
+export const GetExerciseLogsResponseItem = zod.object({
+  "id": zod.number(),
+  "sessionId": zod.number(),
+  "scheduledDate": zod.string().nullish(),
+  "weightUsed": zod.number().nullish(),
+  "sets": zod.number(),
+  "reps": zod.number(),
+  "notes": zod.string().nullish(),
+  "rating": zod.number().nullish(),
+  "setCompletions": zod.string().nullish(),
+  "loggedAt": zod.string()
+})
+export const GetExerciseLogsResponse = zod.array(GetExerciseLogsResponseItem)
+
+
+/**
  * @summary Generate a workout plan (single, weekly, or monthly) and persist sessions
  */
 
@@ -550,7 +590,7 @@ export const ReplaceExerciseParams = zod.object({
 
 export const ReplaceExerciseBody = zod.object({
   "exerciseId": zod.number().describe('ID of the exercise to replace'),
-  "direction": zod.enum(['random', 'easier', 'harder'])
+  "direction": zod.enum(['same', 'random'])
 })
 
 export const replaceExerciseResponseLastLogRatingMax = 5;
@@ -585,6 +625,18 @@ export const ReplaceExerciseResponse = zod.object({
   "isCompleted": zod.boolean(),
   "loggedAt": zod.coerce.date()
 }).optional()
+})
+
+
+/**
+ * @summary Regenerate all exercises for a session, keeping the same split
+ */
+export const RegenerateWorkoutParams = zod.object({
+  "sessionId": zod.coerce.number()
+})
+
+export const RegenerateWorkoutResponse = zod.object({
+  "sessionId": zod.number()
 })
 
 

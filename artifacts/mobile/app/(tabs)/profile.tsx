@@ -8,6 +8,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Svg, { Circle } from "react-native-svg";
 import { Feather } from "@expo/vector-icons";
 import { useQueryClient } from "@tanstack/react-query";
+import { router } from "expo-router";
 import { useColors } from "@/hooks/useColors";
 
 const MUSCLE_GROUP_ORDER = ["Chest", "Back", "Legs", "Core", "Arms", "Shoulders", "Other"];
@@ -296,6 +297,23 @@ export default function ProfileScreen() {
           })}
       </View>
 
+      {/* Exercise Library */}
+      <TouchableOpacity
+        style={[styles.libBtn, { backgroundColor: colors.card, borderColor: colors.border }]}
+        onPress={() => router.push("/exercise-library")}
+      >
+        <View style={[styles.libIconBox, { backgroundColor: colors.muted }]}>
+          <Feather name="book-open" size={16} color={colors.primary} />
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={[styles.libBtnTitle, { color: colors.foreground }]}>Exercise Library</Text>
+          <Text style={[styles.libBtnSub, { color: colors.mutedForeground }]}>
+            Browse all exercises · Add custom exercises
+          </Text>
+        </View>
+        <Feather name="chevron-right" size={18} color={colors.mutedForeground} />
+      </TouchableOpacity>
+
       {/* Danger Zone */}
       <View style={[styles.dangerZone, { borderColor: colors.border }]}>
         <Text style={[styles.dangerTitle, { color: colors.mutedForeground }]}>Data Management</Text>
@@ -396,7 +414,15 @@ const styles = StyleSheet.create({
   prBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
   prBadgeText: { fontSize: 13, fontFamily: "Inter_700Bold" },
 
-  dangerZone: { marginTop: 32, borderTopWidth: 1, paddingTop: 24, gap: 12 },
+  libBtn: {
+    flexDirection: "row", alignItems: "center", gap: 14,
+    padding: 16, borderRadius: 14, borderWidth: 1, marginTop: 32,
+  },
+  libIconBox: { width: 36, height: 36, borderRadius: 10, justifyContent: "center", alignItems: "center" },
+  libBtnTitle: { fontSize: 15, fontFamily: "Inter_600SemiBold", marginBottom: 2 },
+  libBtnSub: { fontSize: 12, fontFamily: "Inter_400Regular" },
+
+  dangerZone: { marginTop: 16, borderTopWidth: 1, paddingTop: 24, gap: 12 },
   dangerTitle: { fontSize: 12, fontFamily: "Inter_700Bold", letterSpacing: 1, textTransform: "uppercase", marginBottom: 4 },
   resetBtn: {
     flexDirection: "row", alignItems: "center", gap: 12,
