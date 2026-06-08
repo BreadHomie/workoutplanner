@@ -1,10 +1,10 @@
-const CACHE_NAME = "glide-fitness-v1";
+const CACHE_NAME = "glide-fitness-v3";
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) =>
-      cache.addAll(["/", "/index.html"])
-    ).catch(() => {})
+      cache.addAll(["/pwa/", "/pwa/index.html"]).catch(() => {})
+    )
   );
   self.skipWaiting();
 });
@@ -20,22 +20,18 @@ self.addEventListener("activate", (event) => {
 
 self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET") return;
+  const url = new URL(event.request.url);
+  // Never cache Vite dev server requests
+  if (url.pathname.includes("/@") || url.pathname.includes("/__vite")) return;
   event.respondWith(
-    caches.match(event.request).then((cached) => {
-      if (cached) return cached;
-      return fetch(event.request)
-        .then((response) => {
-          if (response.ok) {
-            const clone = response.clone();
-            caches.open(CACHE_NAME).then((c) => c.put(event.request, clone));
-          }
-          return response;
-        })
-        .catch(() => {
-          if (event.request.destination === "document") {
-            return caches.match("/index.html");
-          }
-        });
-    })
+    fetch(event.request)
+      .then((response) => {
+        if (response.ok) {
+          const clone = response.clone();
+          caches.open(CACHE_NAME).then((c) => c.put(event.request, clone));
+        }
+        return response;
+      })
+      .catch(() => caches.match(event.request))
   );
 });
