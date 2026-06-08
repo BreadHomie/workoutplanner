@@ -109,68 +109,44 @@ export const SPLIT_CYCLES: Record<string, Array<[string, string]>> = {
 
 export async function getLastLog(exerciseId: number, clientId?: number): Promise<SessionLog | null> {
   let logs: SessionLog[];
-
   if (clientId !== undefined) {
-    const clientSessions = await db.workoutSessions
-      .where("clientId")
-      .equals(clientId)
-      .toArray();
+    const clientSessions = await db.workoutSessions.where("clientId").equals(clientId).toArray();
     const sessionIds = clientSessions.map((s) => s.id!).filter(Boolean);
     if (sessionIds.length === 0) return null;
     logs = await db.sessionLogs
-      .where("sessionId")
-      .anyOf(sessionIds)
+      .where("sessionId").anyOf(sessionIds)
       .filter((l) => l.exerciseId === exerciseId)
       .toArray();
   } else {
     logs = await db.sessionLogs.where("exerciseId").equals(exerciseId).toArray();
   }
-
   if (logs.length === 0) return null;
-  return logs.sort(
-    (a, b) => new Date(b.loggedAt).getTime() - new Date(a.loggedAt).getTime()
-  )[0];
+  return logs.sort((a, b) => new Date(b.loggedAt).getTime() - new Date(a.loggedAt).getTime())[0];
 }
 
 async function getWeeklyUsedExerciseIds(weekStart: string, clientId?: number): Promise<number[]> {
   const weekEnd = new Date(weekStart);
   weekEnd.setDate(weekEnd.getDate() + 7);
   const weekEndStr = weekEnd.toISOString().split("T")[0];
-
   let sessions = await db.workoutSessions.toArray();
-  if (clientId !== undefined) {
-    sessions = sessions.filter((s) => s.clientId === clientId);
-  }
+  if (clientId !== undefined) sessions = sessions.filter((s) => s.clientId === clientId);
   const weekSessions = sessions.filter(
-    (s) =>
-      s.scheduledDate &&
-      s.scheduledDate >= weekStart &&
-      s.scheduledDate < weekEndStr
+    (s) => s.scheduledDate && s.scheduledDate >= weekStart && s.scheduledDate < weekEndStr
   );
   if (weekSessions.length === 0) return [];
-
   const sessionIds = weekSessions.map((s) => s.id!).filter(Boolean);
   const logs = await db.sessionLogs.where("sessionId").anyOf(sessionIds).toArray();
   return [...new Set(logs.map((l) => l.exerciseId))];
 }
 
-function filterBySlot(
-  exercises: Exercise[],
-  slot: SlotFilter,
-  difficulty: string,
-  equipment: string[]
-): Exercise[] {
+function filterBySlot(exercises: Exercise[], slot: SlotFilter, difficulty: string, equipment: string[]): Exercise[] {
   const diffLevels =
-    difficulty === "Beginner"
-      ? ["Beginner"]
-      : difficulty === "Intermediate"
-      ? ["Beginner", "Intermediate"]
-      : ["Beginner", "Intermediate", "Advanced"];
-
-  const equipSet =
-    equipment.length > 0 ? new Set([...equipment, "Bodyweight"]) : null;
-
+    difficulty === "Beginner" ? ["Beginner"] :
+    difficulty === "Intermediate" ? ["Beginner", "Intermediate"] :
+    ["Beginner", "Intermediate", "Advanced"];
+  const equipSet = equipment.length > 0 ? new Set([...equipment, "Bodyweight"]) : null;
   return exercises.filter((ex) => {
+    if (ex.isActive === false) return false;
     if (!diffLevels.includes(ex.difficulty)) return false;
     if (equipSet && !equipSet.has(ex.equipment)) return false;
     const muscleMatch = slot.muscles.some((m) => {
@@ -189,11 +165,7 @@ function filterBySlot(
   });
 }
 
-function pickRandom(
-  pool: Exercise[],
-  sessionUsed: Set<number>,
-  weeklyUsed: Set<number>
-): Exercise | undefined {
+function pickRandom(pool: Exercise[], sessionUsed: Set<number>, weeklyUsed: Set<number>): Exercise | undefined {
   if (pool.length === 0) return undefined;
   let available = pool.filter((e) => !sessionUsed.has(e.id) && !weeklyUsed.has(e.id));
   if (available.length === 0) available = pool.filter((e) => !sessionUsed.has(e.id));
@@ -213,12 +185,10 @@ export async function generateWorkout(params: {
   clientId?: number;
 }): Promise<WorkoutPlan> {
   const { splitType, splitVariant, difficultyLevel, equipment, scheduledDate, clientId } = params;
-
   const isCore = splitVariant === "Core";
   let layoutKey = splitType;
   if (isCore && ["Lower", "Legs"].includes(splitType)) layoutKey = `${splitType}_Core`;
   else if (isCore && splitType === "Upper") layoutKey = "Upper_Core";
-
   const layout = SPLIT_LAYOUTS[layoutKey] ?? SPLIT_LAYOUTS[splitType];
   if (!layout) throw new Error(`Unknown split: ${splitType}`);
 
@@ -232,25 +202,19 @@ export async function generateWorkout(params: {
   const weeklyUsedArr = await getWeeklyUsedExerciseIds(weekStartStr, clientId);
   const weeklyUsed = new Set<number>(weeklyUsedArr);
   const sessionUsed = new Set<number>();
-
   const allExercises = await db.exercises.toArray();
 
   function getPool(slot: SlotFilter, relaxEquipment = false): Exercise[] {
     const eq = relaxEquipment ? [] : equipment;
     let pool = filterBySlot(allExercises, slot, difficultyLevel, eq);
-    if (pool.length === 0 && !relaxEquipment) {
-      pool = filterBySlot(allExercises, slot, difficultyLevel, []);
-    }
+    if (pool.length === 0 && !relaxEquipment) pool = filterBySlot(allExercises, slot, difficultyLevel, []);
     return pool;
   }
 
   async function pickForSlot(slot: SlotFilter): Promise<ExerciseWithHistory | undefined> {
     let pool = getPool(slot);
     let ex = pickRandom(pool, sessionUsed, weeklyUsed);
-    if (!ex) {
-      pool = getPool(slot, true);
-      ex = pickRandom(pool, sessionUsed, weeklyUsed);
-    }
+    if (!ex) { pool = getPool(slot, true); ex = pickRandom(pool, sessionUsed, weeklyUsed); }
     if (!ex) return undefined;
     const lastLog = await getLastLog(ex.id, clientId);
     return { exercise: ex, lastLog, suggestedSets: 3, suggestedReps: 8 };

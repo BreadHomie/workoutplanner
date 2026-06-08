@@ -10,7 +10,8 @@ export interface Exercise {
   hitCore: boolean;
   hitArm: boolean;
   hitShoulder: boolean;
-  classification: string;
+  classification?: string;
+  isActive?: boolean; // undefined or true = active, false = hidden
 }
 
 export interface SessionLog {
@@ -88,3 +89,11 @@ export interface Client {
 
 export const EQUIPMENT_OPTIONS = ["Full Gym", "Bodyweight", "Dumbbells"] as const;
 export const DIFFICULTY_OPTIONS = ["Beginner", "Intermediate", "Advanced"] as const;
+export const MUSCLE_FIELDS = [
+  { key: "hitChest", label: "Chest" },
+  { key: "hitBack", label: "Back" },
+  { key: "hitLegs", label: "Legs" },
+  { key: "hitCore", label: "Core" },
+  { key: "hitArm", label: "Arms" },
+  { key: "hitShoulder", label: "Shoulders" },
+] as const;

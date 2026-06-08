@@ -5,6 +5,7 @@ import exercisesRaw from "@assets/exercises_seed.json";
 const EXERCISES: Exercise[] = (exercisesRaw as any[]).map((e) => ({
   ...e,
   equipment: e.equipment === "Dumbbells only" ? "Dumbbells" : e.equipment,
+  isActive: true,
 }));
 
 class GlideDb extends Dexie {
@@ -18,21 +19,31 @@ class GlideDb extends Dexie {
   constructor() {
     super("glide-fitness");
     this.version(1).stores({
-      exercises:
-        "id, equipment, difficulty, isCompound, hitChest, hitBack, hitLegs, hitCore, hitArm, hitShoulder",
+      exercises: "id, equipment, difficulty, isCompound, hitChest, hitBack, hitLegs, hitCore, hitArm, hitShoulder",
       workoutSessions: "++id, scheduledDate, isCompleted, createdAt",
       sessionLogs: "++id, sessionId, exerciseId, loggedAt",
       userProfile: "++id",
       schedule: "++id, date",
     });
     this.version(2).stores({
-      exercises:
-        "id, equipment, difficulty, isCompound, hitChest, hitBack, hitLegs, hitCore, hitArm, hitShoulder",
+      exercises: "id, equipment, difficulty, isCompound, hitChest, hitBack, hitLegs, hitCore, hitArm, hitShoulder",
       workoutSessions: "++id, scheduledDate, isCompleted, createdAt, clientId",
       sessionLogs: "++id, sessionId, exerciseId, loggedAt",
       userProfile: "++id",
       schedule: "++id, date, clientId",
       clients: "++id, name, createdAt",
+    });
+    this.version(3).stores({
+      exercises: "id, equipment, difficulty, isCompound, hitChest, hitBack, hitLegs, hitCore, hitArm, hitShoulder, isActive",
+      workoutSessions: "++id, scheduledDate, isCompleted, createdAt, clientId",
+      sessionLogs: "++id, sessionId, exerciseId, loggedAt",
+      userProfile: "++id",
+      schedule: "++id, date, clientId",
+      clients: "++id, name, createdAt",
+    }).upgrade(async (tx) => {
+      await tx.table("exercises").toCollection().modify((ex: any) => {
+        if (ex.isActive === undefined) ex.isActive = true;
+      });
     });
   }
 }
@@ -40,9 +51,7 @@ class GlideDb extends Dexie {
 export const db = new GlideDb();
 
 export async function initializeDb(): Promise<void> {
-  try {
-    await navigator.storage?.persist?.();
-  } catch (_) {}
+  try { await navigator.storage?.persist?.(); } catch (_) {}
 
   const exCount = await db.exercises.count();
   if (exCount === 0) {
