@@ -1,6 +1,6 @@
 kind = "web"
 previewPath = "/pwa/"
-title = "Glide Fitness PWA"
+title = "Workout Planner"
 version = "1.0.0"
 id = "artifacts/pwa"
 router = "path"
