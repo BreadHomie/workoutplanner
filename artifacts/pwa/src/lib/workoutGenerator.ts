@@ -107,20 +107,40 @@ export const SPLIT_CYCLES: Record<string, Array<[string, string]>> = {
   ],
 };
 
-export async function getLastLog(exerciseId: number): Promise<SessionLog | null> {
-  const logs = await db.sessionLogs.where("exerciseId").equals(exerciseId).toArray();
+export async function getLastLog(exerciseId: number, clientId?: number): Promise<SessionLog | null> {
+  let logs: SessionLog[];
+
+  if (clientId !== undefined) {
+    const clientSessions = await db.workoutSessions
+      .where("clientId")
+      .equals(clientId)
+      .toArray();
+    const sessionIds = clientSessions.map((s) => s.id!).filter(Boolean);
+    if (sessionIds.length === 0) return null;
+    logs = await db.sessionLogs
+      .where("sessionId")
+      .anyOf(sessionIds)
+      .filter((l) => l.exerciseId === exerciseId)
+      .toArray();
+  } else {
+    logs = await db.sessionLogs.where("exerciseId").equals(exerciseId).toArray();
+  }
+
   if (logs.length === 0) return null;
   return logs.sort(
     (a, b) => new Date(b.loggedAt).getTime() - new Date(a.loggedAt).getTime()
   )[0];
 }
 
-async function getWeeklyUsedExerciseIds(weekStart: string): Promise<number[]> {
+async function getWeeklyUsedExerciseIds(weekStart: string, clientId?: number): Promise<number[]> {
   const weekEnd = new Date(weekStart);
   weekEnd.setDate(weekEnd.getDate() + 7);
   const weekEndStr = weekEnd.toISOString().split("T")[0];
 
-  const sessions = await db.workoutSessions.toArray();
+  let sessions = await db.workoutSessions.toArray();
+  if (clientId !== undefined) {
+    sessions = sessions.filter((s) => s.clientId === clientId);
+  }
   const weekSessions = sessions.filter(
     (s) =>
       s.scheduledDate &&
@@ -148,14 +168,11 @@ function filterBySlot(
       : ["Beginner", "Intermediate", "Advanced"];
 
   const equipSet =
-    equipment.length > 0
-      ? new Set([...equipment, "Bodyweight"])
-      : null;
+    equipment.length > 0 ? new Set([...equipment, "Bodyweight"]) : null;
 
   return exercises.filter((ex) => {
     if (!diffLevels.includes(ex.difficulty)) return false;
     if (equipSet && !equipSet.has(ex.equipment)) return false;
-
     const muscleMatch = slot.muscles.some((m) => {
       switch (m) {
         case "chest": return ex.hitChest;
@@ -193,8 +210,9 @@ export async function generateWorkout(params: {
   difficultyLevel: string;
   equipment: string[];
   scheduledDate?: string;
+  clientId?: number;
 }): Promise<WorkoutPlan> {
-  const { splitType, splitVariant, difficultyLevel, equipment, scheduledDate } = params;
+  const { splitType, splitVariant, difficultyLevel, equipment, scheduledDate, clientId } = params;
 
   const isCore = splitVariant === "Core";
   let layoutKey = splitType;
@@ -211,7 +229,7 @@ export async function generateWorkout(params: {
   weekStart.setDate(today.getDate() + mondayOffset);
   const weekStartStr = weekStart.toISOString().split("T")[0];
 
-  const weeklyUsedArr = await getWeeklyUsedExerciseIds(weekStartStr);
+  const weeklyUsedArr = await getWeeklyUsedExerciseIds(weekStartStr, clientId);
   const weeklyUsed = new Set<number>(weeklyUsedArr);
   const sessionUsed = new Set<number>();
 
@@ -234,7 +252,7 @@ export async function generateWorkout(params: {
       ex = pickRandom(pool, sessionUsed, weeklyUsed);
     }
     if (!ex) return undefined;
-    const lastLog = await getLastLog(ex.id);
+    const lastLog = await getLastLog(ex.id, clientId);
     return { exercise: ex, lastLog, suggestedSets: 3, suggestedReps: 8 };
   }
 
@@ -260,19 +278,12 @@ export async function generateWorkout(params: {
       const fallbackPool = getPool(circuitDef.slots[0], true);
       const ex = pickRandom(fallbackPool, sessionUsed, weeklyUsed);
       if (ex) {
-        const lastLog = await getLastLog(ex.id);
+        const lastLog = await getLastLog(ex.id, clientId);
         exercises.push({ exercise: ex, lastLog, suggestedSets: 3, suggestedReps: 8 });
       } else break;
     }
     circuits.push({ circuitNumber: i + 1, exercises });
   }
 
-  return {
-    splitType,
-    splitVariant,
-    compound: compoundItem,
-    compound2,
-    circuits,
-    scheduledDate,
-  };
+  return { splitType, splitVariant, compound: compoundItem, compound2, circuits, scheduledDate };
 }

@@ -21,7 +21,6 @@ export interface SessionLog {
   reps: number;
   weightUsed?: number;
   notes?: string;
-  rating?: number;
   setCompletions?: string;
   isCompleted: boolean;
   loggedAt: string;
@@ -57,6 +56,7 @@ export interface WorkoutSession {
   isCompleted: boolean;
   photoUri?: string;
   workoutPlanJson?: string;
+  clientId?: number;
   createdAt: string;
 }
 
@@ -66,9 +66,6 @@ export interface UserProfile {
   equipment: string[];
   targetCadence: number;
   preferredSplit: string;
-  totalXp: number;
-  totalCoins: number;
-  level: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -78,16 +75,16 @@ export interface ScheduleEntry {
   date: string;
   splitType?: string;
   splitVariant?: string;
+  clientId?: number;
 }
 
-export type MuscleGroup = "chest" | "back" | "legs" | "core" | "arm" | "shoulder";
+export interface Client {
+  id?: number;
+  name: string;
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
+}
 
 export const EQUIPMENT_OPTIONS = ["Full Gym", "Bodyweight", "Dumbbells"] as const;
 export const DIFFICULTY_OPTIONS = ["Beginner", "Intermediate", "Advanced"] as const;
-export const SPLIT_OPTIONS = [
-  "Full Body",
-  "Upper/Lower",
-  "Upper/Lower + Core",
-  "Push/Pull/Legs",
-  "Push/Pull/Legs + Core",
-] as const;
