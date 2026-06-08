@@ -133,9 +133,10 @@ export default function Generate() {
   };
 
   const handleConfirmDates = async () => {
-    if (selectedDates.length === 0 || !profile) return;
+    if (selectedDates.length === 0) return;
     setIsGenerating(true);
     setError(null);
+    const difficultyLevel = profile?.difficultyLevel ?? "Intermediate";
     try {
       const cyclePairs = SPLIT_CYCLES[splitCycleKey] ?? [["Full Body", "Standard"]];
       const summary: Array<{ date: string; split: string }> = [];
@@ -159,7 +160,7 @@ export default function Generate() {
 
         const plan = await generateWorkout({
           splitType, splitVariant,
-          difficultyLevel: profile.difficultyLevel,
+          difficultyLevel,
           equipment,
           scheduledDate,
           clientId: selectedClientId,
