@@ -1,10 +1,11 @@
-import { useState } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
-import { Dumbbell, ChevronRight, CheckCircle2, CalendarDays } from "lucide-react";
+import { Dumbbell, ChevronRight, CheckCircle2, CalendarDays, History } from "lucide-react";
 import { db } from "../db/index";
 
 interface Props {
+  selectedClientId?: number;
   onOpenWorkout: (sessionId: number) => void;
+  onOpenHistory: () => void;
 }
 
 function formatDate(dateStr: string) {
@@ -27,63 +28,63 @@ function daysUntil(dateStr: string) {
   return `In ${diff} days`;
 }
 
-export default function WorkoutTab({ onOpenWorkout }: Props) {
-  const [filterClientId, setFilterClientId] = useState<number | "all">("all");
+export default function WorkoutTab({ selectedClientId, onOpenWorkout, onOpenHistory }: Props) {
   const sessions = useLiveQuery(() => db.workoutSessions.orderBy("scheduledDate").toArray(), []);
-  const clients = useLiveQuery(() => db.clients.orderBy("name").toArray(), []);
+  const clients = useLiveQuery(() => db.clients.toArray(), []);
 
   const today = new Date().toISOString().split("T")[0];
   const clientMap = new Map((clients ?? []).map((c) => [c.id!, c.name]));
+  const selectedClientName = selectedClientId ? clientMap.get(selectedClientId) : undefined;
 
-  // Show all scheduled sessions (upcoming + today), sorted by date
   const filtered = (sessions ?? [])
     .filter((s) => {
       if (!s.scheduledDate) return false;
-      if (s.scheduledDate < today) return false; // only today and future
-      if (filterClientId !== "all" && s.clientId !== filterClientId) return false;
+      if (s.scheduledDate < today) return false;
+      if (selectedClientId !== undefined && s.clientId !== selectedClientId) return false;
       return true;
     })
     .sort((a, b) => (a.scheduledDate ?? "").localeCompare(b.scheduledDate ?? ""));
 
   const completed = (sessions ?? [])
-    .filter((s) => s.isCompleted)
+    .filter((s) => {
+      if (!s.isCompleted) return false;
+      if (selectedClientId !== undefined && s.clientId !== selectedClientId) return false;
+      return true;
+    })
     .sort((a, b) => (b.scheduledDate ?? b.createdAt).localeCompare(a.scheduledDate ?? a.createdAt));
 
   const getPlanExerciseCount = (planJson?: string) => {
     if (!planJson) return null;
     try {
       const plan = JSON.parse(planJson);
-      const count = 1 + (plan.compound2 ? 1 : 0) + (plan.circuits ?? []).reduce((acc: number, c: any) => acc + (c.exercises?.length ?? 0), 0);
-      return count;
+      return 1 + (plan.compound2 ? 1 : 0) + (plan.circuits ?? []).reduce((acc: number, c: any) => acc + (c.exercises?.length ?? 0), 0);
     } catch { return null; }
   };
 
   return (
     <div style={{ height: "100%", display: "flex", flexDirection: "column" }}>
-      <div style={{ padding: "20px 16px 8px" }}>
-        <div style={{ fontSize: 22, fontWeight: 800, color: "hsl(0 0% 95%)" }}>Workouts</div>
-        <div style={{ fontSize: 13, color: "hsl(0 0% 50%)" }}>{filtered.length} upcoming</div>
+      <div style={{ padding: "20px 16px 8px", display: "flex", alignItems: "flex-start", justifyContent: "space-between" }}>
+        <div>
+          <div style={{ fontSize: 22, fontWeight: 800, color: "hsl(0 0% 95%)" }}>Workouts</div>
+          <div style={{ fontSize: 13, color: "hsl(0 0% 50%)" }}>
+            {selectedClientName ? (
+              <span>For <span style={{ color: "hsl(83 97% 59%)", fontWeight: 600 }}>{selectedClientName}</span> · {filtered.length} upcoming</span>
+            ) : `${filtered.length} upcoming`}
+          </div>
+        </div>
+        <button type="button" onClick={onOpenHistory}
+          style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 14px", borderRadius: 10, background: "hsl(0 0% 13%)", border: "1px solid hsl(0 0% 20%)", cursor: "pointer", color: "hsl(0 0% 70%)", fontSize: 13, fontWeight: 600, fontFamily: "inherit" }}>
+          <History size={15} />
+          History
+        </button>
       </div>
 
       <div className="scroll-area" style={{ flex: 1, padding: "8px 16px 24px" }}>
-        {/* Client filter */}
-        {clients && clients.length > 0 && (
-          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" as const, marginBottom: 14 }}>
-            <button type="button" className={`chip${filterClientId === "all" ? " active" : ""}`} onClick={() => setFilterClientId("all")}>All</button>
-            {clients.map((c) => (
-              <button key={c.id} type="button" className={`chip${filterClientId === c.id ? " active" : ""}`} onClick={() => setFilterClientId(c.id!)}>
-                {c.name}
-              </button>
-            ))}
-          </div>
-        )}
-
-        {/* Upcoming */}
         {filtered.length === 0 && (
           <div style={{ marginTop: 40, display: "flex", flexDirection: "column" as const, alignItems: "center", gap: 12, color: "hsl(0 0% 40%)", textAlign: "center" }}>
             <CalendarDays size={48} strokeWidth={1} />
             <div style={{ fontSize: 16, fontWeight: 600, color: "hsl(0 0% 55%)" }}>No upcoming workouts</div>
-            <div style={{ fontSize: 13 }}>Use Generate to plan workouts for your clients</div>
+            <div style={{ fontSize: 13 }}>Use Generate to plan workouts</div>
           </div>
         )}
 
@@ -92,6 +93,7 @@ export default function WorkoutTab({ onOpenWorkout }: Props) {
           const clientName = session.clientId ? clientMap.get(session.clientId) : undefined;
           const dateLabel = formatDate(session.scheduledDate!);
           const until = daysUntil(session.scheduledDate!);
+          const isToday = session.scheduledDate === today;
           return (
             <button
               key={session.id}
@@ -100,20 +102,19 @@ export default function WorkoutTab({ onOpenWorkout }: Props) {
               style={{
                 width: "100%", display: "flex", alignItems: "center", gap: 14,
                 padding: "14px 16px", borderRadius: 14, marginBottom: 8,
-                border: session.scheduledDate === today ? "1px solid hsl(83 97% 59% / 0.4)" : "1px solid hsl(0 0% 15%)",
-                background: session.scheduledDate === today ? "hsl(83 97% 59% / 0.05)" : "hsl(0 0% 9%)",
+                border: isToday ? "1px solid hsl(83 97% 59% / 0.4)" : "1px solid hsl(0 0% 15%)",
+                background: isToday ? "hsl(83 97% 59% / 0.05)" : "hsl(0 0% 9%)",
                 cursor: "pointer", textAlign: "left" as const,
               }}
             >
-              {/* Date badge */}
               <div style={{
                 minWidth: 52, textAlign: "center" as const, padding: "8px 6px", borderRadius: 10,
-                background: session.scheduledDate === today ? "hsl(83 97% 59%)" : "hsl(0 0% 14%)",
+                background: isToday ? "hsl(83 97% 59%)" : "hsl(0 0% 14%)",
               }}>
-                <div style={{ fontSize: 18, fontWeight: 800, color: session.scheduledDate === today ? "hsl(0 0% 5%)" : "hsl(0 0% 85%)" }}>
+                <div style={{ fontSize: 18, fontWeight: 800, color: isToday ? "hsl(0 0% 5%)" : "hsl(0 0% 85%)" }}>
                   {new Date(session.scheduledDate! + "T12:00:00").getDate()}
                 </div>
-                <div style={{ fontSize: 10, fontWeight: 700, color: session.scheduledDate === today ? "hsl(0 0% 15%)" : "hsl(0 0% 50%)", textTransform: "uppercase" as const }}>
+                <div style={{ fontSize: 10, fontWeight: 700, color: isToday ? "hsl(0 0% 15%)" : "hsl(0 0% 50%)", textTransform: "uppercase" as const }}>
                   {new Date(session.scheduledDate! + "T12:00:00").toLocaleDateString("en-US", { month: "short" })}
                 </div>
               </div>
@@ -128,16 +129,13 @@ export default function WorkoutTab({ onOpenWorkout }: Props) {
                 </div>
               </div>
               <div style={{ display: "flex", flexDirection: "column" as const, alignItems: "flex-end", gap: 4 }}>
-                <span style={{ fontSize: 11, fontWeight: 600, color: session.scheduledDate === today ? "hsl(83 97% 59%)" : "hsl(0 0% 45%)" }}>
-                  {until}
-                </span>
+                <span style={{ fontSize: 11, fontWeight: 600, color: isToday ? "hsl(83 97% 59%)" : "hsl(0 0% 45%)" }}>{until}</span>
                 <ChevronRight size={16} color="hsl(0 0% 40%)" />
               </div>
             </button>
           );
         })}
 
-        {/* Recently completed */}
         {completed.length > 0 && (
           <>
             <div className="section-label" style={{ marginTop: 24 }}>Recently Completed</div>

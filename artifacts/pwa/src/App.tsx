@@ -8,6 +8,8 @@ import Profile from "./pages/Profile";
 import ClientDetail from "./pages/ClientDetail";
 import ExerciseHistory from "./pages/ExerciseHistory";
 import WorkoutDetail from "./pages/WorkoutDetail";
+import ExerciseLibrary from "./pages/ExerciseLibrary";
+import WorkoutHistory from "./pages/WorkoutHistory";
 
 type Tab = "generate" | "clientele" | "workout" | "schedule" | "profile";
 
@@ -15,7 +17,9 @@ type NavScreen =
   | { screen: "main" }
   | { screen: "client-detail"; clientId: number }
   | { screen: "exercise-history"; clientId: number }
-  | { screen: "workout-detail"; sessionId: number };
+  | { screen: "workout-detail"; sessionId: number }
+  | { screen: "exercise-library" }
+  | { screen: "workout-history" };
 
 const TABS: { id: Tab; label: string; Icon: typeof Zap }[] = [
   { id: "generate", label: "Generate", Icon: Zap },
@@ -28,9 +32,19 @@ const TABS: { id: Tab; label: string; Icon: typeof Zap }[] = [
 export default function App() {
   const [tab, setTab] = useState<Tab>("generate");
   const [nav, setNav] = useState<NavScreen>({ screen: "main" });
+  const [selectedClientId, setSelectedClientId] = useState<number | undefined>(undefined);
+
+  const goMain = () => setNav({ screen: "main" });
 
   const handleTabChange = (newTab: Tab) => {
     setTab(newTab);
+    setNav({ screen: "main" });
+  };
+
+  // Called from Clientele when a client card is tapped
+  const selectClientAndGoToSchedule = (clientId: number) => {
+    setSelectedClientId(clientId);
+    setTab("schedule");
     setNav({ screen: "main" });
   };
 
@@ -45,6 +59,14 @@ export default function App() {
 
   const openWorkoutDetail = (sessionId: number) => {
     setNav({ screen: "workout-detail", sessionId });
+  };
+
+  const openExerciseLibrary = () => {
+    setNav({ screen: "exercise-library" });
+  };
+
+  const openWorkoutHistory = () => {
+    setNav({ screen: "workout-history" });
   };
 
   const goBack = () => {
@@ -62,10 +84,28 @@ export default function App() {
         {nav.screen === "main" && (
           <>
             {tab === "generate" && <Generate />}
-            {tab === "clientele" && <Clientele onOpenClient={openClientDetail} />}
-            {tab === "workout" && <WorkoutTab onOpenWorkout={openWorkoutDetail} />}
-            {tab === "schedule" && <Schedule onOpenWorkout={openWorkoutDetail} />}
-            {tab === "profile" && <Profile />}
+            {tab === "clientele" && (
+              <Clientele
+                onSelectClient={selectClientAndGoToSchedule}
+                onOpenClient={openClientDetail}
+              />
+            )}
+            {tab === "workout" && (
+              <WorkoutTab
+                selectedClientId={selectedClientId}
+                onOpenWorkout={openWorkoutDetail}
+                onOpenHistory={openWorkoutHistory}
+              />
+            )}
+            {tab === "schedule" && (
+              <Schedule
+                selectedClientId={selectedClientId}
+                onOpenWorkout={openWorkoutDetail}
+              />
+            )}
+            {tab === "profile" && (
+              <Profile onOpenExerciseLibrary={openExerciseLibrary} />
+            )}
           </>
         )}
         {nav.screen === "client-detail" && (
@@ -85,7 +125,14 @@ export default function App() {
           <WorkoutDetail
             sessionId={(nav as any).sessionId}
             onBack={goBack}
+            onOpenHistory={openWorkoutHistory}
           />
+        )}
+        {nav.screen === "exercise-library" && (
+          <ExerciseLibrary onBack={goBack} />
+        )}
+        {nav.screen === "workout-history" && (
+          <WorkoutHistory onBack={goBack} />
         )}
       </div>
 

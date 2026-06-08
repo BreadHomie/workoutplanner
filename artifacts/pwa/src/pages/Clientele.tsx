@@ -1,14 +1,15 @@
 import { useState } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
-import { UserPlus, Trash2, ChevronRight, Users } from "lucide-react";
+import { UserPlus, Trash2, ChevronRight, Users, Info } from "lucide-react";
 import { db } from "../db/index";
 import type { Client } from "../lib/types";
 
 interface Props {
+  onSelectClient: (clientId: number) => void;
   onOpenClient: (clientId: number) => void;
 }
 
-export default function Clientele({ onOpenClient }: Props) {
+export default function Clientele({ onSelectClient, onOpenClient }: Props) {
   const clients = useLiveQuery(() => db.clients.orderBy("name").toArray(), []);
   const sessions = useLiveQuery(() => db.workoutSessions.toArray(), []);
 
@@ -58,53 +59,22 @@ export default function Clientele({ onOpenClient }: Props) {
       </div>
 
       <div className="scroll-area" style={{ flex: 1, padding: "8px 16px 24px" }}>
-        {/* Add form */}
         {showAdd && (
           <div style={{ marginBottom: 16, padding: 16, borderRadius: 14, border: "1px solid hsl(83 97% 59% / 0.4)", background: "hsl(83 97% 59% / 0.05)" }}>
             <div style={{ fontSize: 13, fontWeight: 600, color: "hsl(0 0% 80%)", marginBottom: 10 }}>New Client</div>
             <input
-              type="text"
-              autoFocus
-              placeholder="Client name"
-              value={newName}
+              type="text" autoFocus placeholder="Client name" value={newName}
               onChange={(e) => setNewName(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && handleAdd()}
-              style={{
-                width: "100%",
-                height: 44,
-                borderRadius: 10,
-                border: "1px solid hsl(0 0% 20%)",
-                background: "hsl(0 0% 12%)",
-                color: "hsl(0 0% 92%)",
-                padding: "0 12px",
-                fontSize: 15,
-                fontFamily: "inherit",
-                marginBottom: 10,
-              }}
+              style={{ width: "100%", height: 44, borderRadius: 10, border: "1px solid hsl(0 0% 20%)", background: "hsl(0 0% 12%)", color: "hsl(0 0% 92%)", padding: "0 12px", fontSize: 15, fontFamily: "inherit", marginBottom: 10 }}
             />
             <div style={{ display: "flex", gap: 8 }}>
-              <button
-                type="button"
-                className="btn-primary"
-                onClick={handleAdd}
-                disabled={!newName.trim()}
-                style={{ flex: 1, minHeight: 40 }}
-              >
-                Add
-              </button>
-              <button
-                type="button"
-                className="btn-secondary"
-                onClick={() => { setShowAdd(false); setNewName(""); }}
-                style={{ flex: 1 }}
-              >
-                Cancel
-              </button>
+              <button type="button" className="btn-primary" onClick={handleAdd} disabled={!newName.trim()} style={{ flex: 1, minHeight: 40 }}>Add</button>
+              <button type="button" className="btn-secondary" onClick={() => { setShowAdd(false); setNewName(""); }} style={{ flex: 1 }}>Cancel</button>
             </div>
           </div>
         )}
 
-        {/* Client list */}
         {clients && clients.length === 0 && !showAdd && (
           <div style={{ marginTop: 48, display: "flex", flexDirection: "column", alignItems: "center", gap: 12, color: "hsl(0 0% 40%)", textAlign: "center" }}>
             <Users size={48} strokeWidth={1} />
@@ -118,45 +88,20 @@ export default function Clientele({ onOpenClient }: Props) {
             {confirmDelete === client.id ? (
               <div style={{ padding: 14, borderRadius: 14, border: "1px solid hsl(0 72% 40% / 0.4)", background: "hsl(0 72% 51% / 0.06)" }}>
                 <div style={{ fontSize: 14, color: "hsl(0 72% 65%)", marginBottom: 10 }}>
-                  Remove <strong>{client.name}</strong>? This won't delete their workout history.
+                  Remove <strong>{client.name}</strong>? Their workout history will remain.
                 </div>
                 <div style={{ display: "flex", gap: 8 }}>
-                  <button
-                    type="button"
-                    onClick={() => handleDelete(client.id!)}
-                    style={{ flex: 1, height: 38, borderRadius: 10, background: "hsl(0 72% 51%)", color: "white", fontWeight: 700, border: "none", cursor: "pointer", fontSize: 14 }}
-                  >
-                    Remove
-                  </button>
-                  <button
-                    type="button"
-                    className="btn-secondary"
-                    onClick={() => setConfirmDelete(null)}
-                    style={{ flex: 1 }}
-                  >
-                    Cancel
-                  </button>
+                  <button type="button" onClick={() => handleDelete(client.id!)} style={{ flex: 1, height: 38, borderRadius: 10, background: "hsl(0 72% 51%)", color: "white", fontWeight: 700, border: "none", cursor: "pointer", fontSize: 14 }}>Remove</button>
+                  <button type="button" className="btn-secondary" onClick={() => setConfirmDelete(null)} style={{ flex: 1 }}>Cancel</button>
                 </div>
               </div>
             ) : (
               <div
                 className="card"
                 style={{ display: "flex", alignItems: "center", cursor: "pointer", padding: "14px 16px", gap: 12 }}
-                onClick={() => onOpenClient(client.id!)}
+                onClick={() => onSelectClient(client.id!)}
               >
-                <div style={{
-                  width: 42,
-                  height: 42,
-                  borderRadius: 999,
-                  background: "hsl(83 97% 59% / 0.15)",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  fontSize: 16,
-                  fontWeight: 700,
-                  color: "hsl(83 97% 59%)",
-                  flexShrink: 0,
-                }}>
+                <div style={{ width: 42, height: 42, borderRadius: 999, background: "hsl(83 97% 59% / 0.15)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, fontWeight: 700, color: "hsl(83 97% 59%)", flexShrink: 0 }}>
                   {client.name.charAt(0).toUpperCase()}
                 </div>
                 <div style={{ flex: 1 }}>
@@ -166,6 +111,15 @@ export default function Clientele({ onOpenClient }: Props) {
                     {client.notes ? " · Has notes" : ""}
                   </div>
                 </div>
+                {/* Info button → client detail */}
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); onOpenClient(client.id!); }}
+                  style={{ width: 32, height: 32, borderRadius: 8, background: "none", border: "1px solid hsl(0 0% 20%)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "hsl(0 0% 45%)" }}
+                  title="Client details"
+                >
+                  <Info size={14} />
+                </button>
                 <button
                   type="button"
                   onClick={(e) => { e.stopPropagation(); setConfirmDelete(client.id!); setShowAdd(false); }}

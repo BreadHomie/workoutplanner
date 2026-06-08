@@ -6,6 +6,7 @@ import { generateWorkout, SPLIT_CYCLES } from "../lib/workoutGenerator";
 import type { WorkoutSession } from "../lib/types";
 
 interface Props {
+  selectedClientId?: number;
   onOpenWorkout: (sessionId: number) => void;
 }
 
@@ -14,16 +15,15 @@ const MONTH_NAMES = ["January","February","March","April","May","June","July","A
 
 function toDateStr(d: Date) { return d.toISOString().split("T")[0]; }
 
-export default function Schedule({ onOpenWorkout }: Props) {
+export default function Schedule({ selectedClientId, onOpenWorkout }: Props) {
   const today = new Date();
   const [viewDate, setViewDate] = useState(new Date(today.getFullYear(), today.getMonth(), 1));
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [isScheduling, setIsScheduling] = useState(false);
-  const [filterClientId, setFilterClientId] = useState<number | undefined>(undefined);
 
   const profile = useLiveQuery(() => db.userProfile.toCollection().first());
   const sessions = useLiveQuery(() => db.workoutSessions.toArray(), []);
-  const clients = useLiveQuery(() => db.clients.orderBy("name").toArray(), []);
+  const clients = useLiveQuery(() => db.clients.toArray(), []);
 
   const year = viewDate.getFullYear();
   const month = viewDate.getMonth();
@@ -32,7 +32,7 @@ export default function Schedule({ onOpenWorkout }: Props) {
   const totalCells = Math.ceil((firstDay + daysInMonth) / 7) * 7;
 
   const filteredSessions = (sessions ?? []).filter((s) =>
-    filterClientId === undefined ? true : s.clientId === filterClientId
+    selectedClientId !== undefined ? s.clientId === selectedClientId : true
   );
 
   const sessionsByDate = new Map<string, WorkoutSession[]>();
@@ -43,6 +43,9 @@ export default function Schedule({ onOpenWorkout }: Props) {
       sessionsByDate.set(s.scheduledDate, arr);
     }
   }
+
+  const clientMap = new Map((clients ?? []).map((c) => [c.id!, c.name]));
+  const selectedClient = selectedClientId ? clientMap.get(selectedClientId) : undefined;
 
   const handleSchedule = async () => {
     if (!selectedDate || !profile) return;
@@ -55,13 +58,13 @@ export default function Schedule({ onOpenWorkout }: Props) {
         difficultyLevel: profile.difficultyLevel,
         equipment: profile.equipment,
         scheduledDate: selectedDate,
-        clientId: filterClientId,
+        clientId: selectedClientId,
       });
       await db.workoutSessions.add({
         splitType, splitVariant, scheduledDate: selectedDate,
         isCompleted: false,
         workoutPlanJson: JSON.stringify(plan),
-        clientId: filterClientId,
+        clientId: selectedClientId,
         createdAt: new Date().toISOString(),
       } as WorkoutSession);
       setSelectedDate(null);
@@ -72,34 +75,28 @@ export default function Schedule({ onOpenWorkout }: Props) {
   const handleRemove = async () => {
     if (!selectedDate) return;
     for (const s of sessionsByDate.get(selectedDate) ?? []) {
-      if (s.id) await db.workoutSessions.delete(s.id);
+      if (s.id) {
+        await db.sessionLogs.where("sessionId").equals(s.id).delete();
+        await db.workoutSessions.delete(s.id);
+      }
     }
     setSelectedDate(null);
   };
 
   const todayStr = toDateStr(today);
-  const clientMap = new Map((clients ?? []).map((c) => [c.id!, c.name]));
 
   return (
     <div style={{ height: "100%", display: "flex", flexDirection: "column" }}>
       <div style={{ padding: "20px 16px 8px" }}>
         <div style={{ fontSize: 22, fontWeight: 800, color: "hsl(0 0% 95%)", marginBottom: 2 }}>Schedule</div>
-        <div style={{ fontSize: 13, color: "hsl(0 0% 50%)" }}>Plan training weeks</div>
+        <div style={{ fontSize: 13, color: "hsl(0 0% 50%)" }}>
+          {selectedClient ? (
+            <span>Showing workouts for <span style={{ color: "hsl(83 97% 59%)", fontWeight: 600 }}>{selectedClient}</span></span>
+          ) : "All scheduled workouts"}
+        </div>
       </div>
 
       <div className="scroll-area" style={{ flex: 1, padding: "0 16px 24px" }}>
-        {/* Client filter */}
-        {clients && clients.length > 0 && (
-          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" as const, marginTop: 8, marginBottom: 4 }}>
-            <button type="button" className={`chip${filterClientId === undefined ? " active" : ""}`} onClick={() => setFilterClientId(undefined)}>All</button>
-            {clients.map((c) => (
-              <button key={c.id} type="button" className={`chip${filterClientId === c.id ? " active" : ""}`} onClick={() => setFilterClientId(c.id!)}>
-                {c.name}
-              </button>
-            ))}
-          </div>
-        )}
-
         {/* Month nav */}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", margin: "12px 0" }}>
           <button type="button" className="btn-secondary" onClick={() => setViewDate(new Date(year, month - 1, 1))} style={{ width: 40, height: 40, padding: 0, borderRadius: 10 }}>
@@ -163,16 +160,15 @@ export default function Schedule({ onOpenWorkout }: Props) {
               <>
                 {(sessionsByDate.get(selectedDate) ?? []).map((s) => (
                   <div key={s.id} style={{ marginBottom: 10 }}>
-                    <div style={{ fontSize: 14, color: "hsl(0 0% 80%)", marginBottom: 6 }}>
+                    <div style={{ fontSize: 14, color: "hsl(0 0% 80%)", marginBottom: 8 }}>
                       {s.splitType}{s.splitVariant !== "Standard" ? " + Core" : ""}
                       {s.clientId && <span style={{ color: "hsl(83 97% 59%)", marginLeft: 8, fontSize: 12 }}>{clientMap.get(s.clientId) ?? ""}</span>}
                       {s.isCompleted && <span style={{ color: "hsl(83 97% 59%)", marginLeft: 8, fontSize: 12 }}>✓ Done</span>}
                     </div>
-                    {/* See Workout button */}
                     {s.workoutPlanJson && (
                       <button type="button" onClick={() => onOpenWorkout(s.id!)}
                         style={{
-                          display: "flex", alignItems: "center", gap: 6, padding: "8px 14px", borderRadius: 10,
+                          display: "flex", alignItems: "center", gap: 6, padding: "9px 14px", borderRadius: 10,
                           background: "hsl(83 97% 59% / 0.12)", border: "1px solid hsl(83 97% 59% / 0.3)",
                           color: "hsl(83 97% 59%)", fontWeight: 600, fontSize: 13, cursor: "pointer",
                         }}>
@@ -192,7 +188,7 @@ export default function Schedule({ onOpenWorkout }: Props) {
             ) : (
               <button type="button" className="btn-primary" onClick={handleSchedule} disabled={isScheduling} style={{ fontSize: 14 }}>
                 <Zap size={16} />
-                {isScheduling ? "Scheduling…" : filterClientId ? `Schedule for ${clientMap.get(filterClientId) ?? "client"}` : "Schedule Workout"}
+                {isScheduling ? "Scheduling…" : selectedClientId ? `Schedule for ${clientMap.get(selectedClientId) ?? "client"}` : "Schedule Workout"}
               </button>
             )}
           </div>

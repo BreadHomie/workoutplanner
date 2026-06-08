@@ -251,3 +251,38 @@ export async function generateWorkout(params: {
 
   return { splitType, splitVariant, compound: compoundItem, compound2, circuits, scheduledDate };
 }
+
+/** Pick an alternative exercise with at least one overlapping muscle group */
+export async function pickAlternativeExercise(
+  original: Exercise,
+  difficultyLevel: string,
+  equipment: string[],
+  excludeIds: number[]
+): Promise<Exercise | null> {
+  const allExercises = await db.exercises.toArray();
+  const diffLevels =
+    difficultyLevel === "Beginner" ? ["Beginner"] :
+    difficultyLevel === "Intermediate" ? ["Beginner", "Intermediate"] :
+    ["Beginner", "Intermediate", "Advanced"];
+  const equipSet = equipment.length > 0 ? new Set([...equipment, "Bodyweight"]) : null;
+  const excludeSet = new Set([...excludeIds, original.id]);
+
+  const candidates = allExercises.filter((ex) => {
+    if (ex.isActive === false) return false;
+    if (excludeSet.has(ex.id)) return false;
+    if (!diffLevels.includes(ex.difficulty)) return false;
+    if (equipSet && !equipSet.has(ex.equipment)) return false;
+    if (ex.isCompound !== original.isCompound) return false;
+    return (
+      (original.hitChest && ex.hitChest) ||
+      (original.hitBack && ex.hitBack) ||
+      (original.hitLegs && ex.hitLegs) ||
+      (original.hitCore && ex.hitCore) ||
+      (original.hitArm && ex.hitArm) ||
+      (original.hitShoulder && ex.hitShoulder)
+    );
+  });
+
+  if (candidates.length === 0) return null;
+  return candidates[Math.floor(Math.random() * candidates.length)];
+}
