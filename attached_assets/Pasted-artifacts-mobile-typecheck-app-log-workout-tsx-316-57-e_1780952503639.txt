@@ -1,0 +1,14 @@
+artifacts/mobile typecheck: app/log-workout.tsx(316,57): error TS2345: Argument of type '{ center: { flex: number; justifyContent: "center"; alignItems: "center"; }; headerContainer: { paddingHorizontal: number; paddingBottom: number; }; headerRow: { flexDirection: "row"; alignItems: "center"; justifyContent: "space-between"; }; ... 25 more ...; prSubtitle: { ...; }; }' is not assignable to parameter of type '{ center: { flex: number; justifyContent: "center"; alignItems: "center"; }; headerContainer: { paddingHorizontal: number; paddingBottom: number; }; headerRow: { flexDirection: "row"; alignItems: "center"; justifyContent: "space-between"; }; ... 25 more ...; prSubtitle: { ...; }; } & NamedStyles<...>'.
+artifacts/mobile typecheck:   Property 'progressBarBg' is incompatible with index signature.
+artifacts/mobile typecheck:     Object literal may only specify known properties, and 'mx' does not exist in type 'ViewStyle | TextStyle | ImageStyle'.
+artifacts/mobile typecheck: hooks/useColors.ts(21,10): error TS2352: Conversion of type '{ light: { text: string; tint: string; background: string; foreground: string; card: string; cardForeground: string; primary: string; primaryForeground: string; secondary: string; secondaryForeground: string; ... 7 more ...; input: string; }; dark: { ...; }; radius: number; }' to type 'Record<string, { text: string; tint: string; background: string; foreground: string; card: string; cardForeground: string; primary: string; primaryForeground: string; secondary: string; secondaryForeground: string; ... 7 more ...; input: string; }>' may be a mistake because neither type sufficiently overlaps with the other. If this was intentional, convert the expression to 'unknown' first.
+artifacts/mobile typecheck:   Property 'radius' is incompatible with index signature.
+artifacts/mobile typecheck:     Type 'number' is not comparable to type '{ text: string; tint: string; background: string; foreground: string; card: string; cardForeground: string; primary: string; primaryForeground: string; secondary: string; secondaryForeground: string; ... 7 more ...; input: string; }'.
+artifacts/mobile typecheck: Failed
+/vercel/path0/artifacts/mobile:
+ ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  @workspace/mobile@0.0.0 typecheck: `tsc -p tsconfig.json --noEmit`
+Exit status 2
+scripts typecheck$ tsc -p tsconfig.json --noEmit
+ ELIFECYCLE  Command failed with exit code 2.
+ ELIFECYCLE  Command failed with exit code 2.
+Error: Command "pnpm run build" exited with 2

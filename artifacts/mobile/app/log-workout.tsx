@@ -313,7 +313,7 @@ const styles = StyleSheet.create({
   headerContainer: { paddingHorizontal: 20, paddingBottom: 16 },
   headerRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   backBtn: { width: 40, height: 40, justifyContent: "center" },
-  progressBarBg: { flex: 1, height: 6, borderRadius: 3, mx: 16, overflow: "hidden" },
+  progressBarBg: { flex: 1, height: 6, borderRadius: 3, marginHorizontal: 16, overflow: "hidden" },
   progressBarFill: { height: "100%", borderRadius: 3 },
   cardContainer: { flex: 1, paddingHorizontal: 24, paddingTop: 32 },
   cardLabel: { fontSize: 12, fontFamily: "Inter_600SemiBold", letterSpacing: 1, marginBottom: 8 },
