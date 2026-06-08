@@ -1,5 +1,5 @@
 import Dexie, { type Table } from "dexie";
-import type { Exercise, SessionLog, WorkoutSession, UserProfile, ScheduleEntry, Client } from "../lib/types";
+import type { Exercise, SessionLog, WorkoutSession, UserProfile, ScheduleEntry, Client, DayNote } from "../lib/types";
 import exercisesRaw from "@assets/exercises_seed.json";
 
 const EXERCISES: Exercise[] = (exercisesRaw as any[]).map((e) => ({
@@ -15,6 +15,7 @@ class GlideDb extends Dexie {
   userProfile!: Table<UserProfile, number>;
   schedule!: Table<ScheduleEntry, number>;
   clients!: Table<Client, number>;
+  dayNotes!: Table<DayNote, number>;
 
   constructor() {
     super("glide-fitness");
@@ -44,6 +45,15 @@ class GlideDb extends Dexie {
       await tx.table("exercises").toCollection().modify((ex: any) => {
         if (ex.isActive === undefined) ex.isActive = true;
       });
+    });
+    this.version(4).stores({
+      exercises: "id, equipment, difficulty, isCompound, hitChest, hitBack, hitLegs, hitCore, hitArm, hitShoulder, isActive",
+      workoutSessions: "++id, scheduledDate, isCompleted, createdAt, clientId",
+      sessionLogs: "++id, sessionId, exerciseId, loggedAt",
+      userProfile: "++id",
+      schedule: "++id, date, clientId",
+      clients: "++id, name, createdAt",
+      dayNotes: "++id, date, clientId",
     });
   }
 }

@@ -11,7 +11,7 @@ export interface Exercise {
   hitArm: boolean;
   hitShoulder: boolean;
   classification?: string;
-  isActive?: boolean; // undefined or true = active, false = hidden
+  isActive?: boolean;
 }
 
 export interface SessionLog {
@@ -25,6 +25,7 @@ export interface SessionLog {
   setCompletions?: string;
   isCompleted: boolean;
   loggedAt: string;
+  rating?: number;
 }
 
 export interface ExerciseWithHistory {
@@ -59,6 +60,9 @@ export interface WorkoutSession {
   workoutPlanJson?: string;
   clientId?: number;
   createdAt: string;
+  bodyWeight?: number;
+  energyLevel?: number;
+  sessionNotes?: string;
 }
 
 export interface UserProfile {
@@ -84,6 +88,14 @@ export interface Client {
   name: string;
   notes?: string;
   createdAt: string;
+  updatedAt: string;
+}
+
+export interface DayNote {
+  id?: number;
+  date: string;
+  clientId?: number;
+  notes: string;
   updatedAt: string;
 }
 

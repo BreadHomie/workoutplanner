@@ -1,17 +1,18 @@
 import { useState } from "react";
-import { Zap, Users, Dumbbell, CalendarDays, Settings } from "lucide-react";
+import { Zap, Users, Dumbbell, CalendarDays, Settings, TrendingUp } from "lucide-react";
 import Generate from "./pages/Generate";
 import Clientele from "./pages/Clientele";
 import WorkoutTab from "./pages/Workout";
 import Schedule from "./pages/Schedule";
 import Profile from "./pages/Profile";
+import Progress from "./pages/Progress";
 import ClientDetail from "./pages/ClientDetail";
 import ExerciseHistory from "./pages/ExerciseHistory";
 import WorkoutDetail from "./pages/WorkoutDetail";
 import ExerciseLibrary from "./pages/ExerciseLibrary";
 import WorkoutHistory from "./pages/WorkoutHistory";
 
-type Tab = "generate" | "clientele" | "workout" | "schedule" | "profile";
+type Tab = "generate" | "clientele" | "workout" | "schedule" | "progress" | "profile";
 
 type NavScreen =
   | { screen: "main" }
@@ -26,6 +27,7 @@ const TABS: { id: Tab; label: string; Icon: typeof Zap }[] = [
   { id: "clientele", label: "Clientele", Icon: Users },
   { id: "workout", label: "Workout", Icon: Dumbbell },
   { id: "schedule", label: "Schedule", Icon: CalendarDays },
+  { id: "progress", label: "Progress", Icon: TrendingUp },
   { id: "profile", label: "Settings", Icon: Settings },
 ];
 
@@ -34,14 +36,11 @@ export default function App() {
   const [nav, setNav] = useState<NavScreen>({ screen: "main" });
   const [selectedClientId, setSelectedClientId] = useState<number | undefined>(undefined);
 
-  const goMain = () => setNav({ screen: "main" });
-
   const handleTabChange = (newTab: Tab) => {
     setTab(newTab);
     setNav({ screen: "main" });
   };
 
-  // Called from Clientele when a client card is tapped
   const selectClientAndGoToSchedule = (clientId: number) => {
     setSelectedClientId(clientId);
     setTab("schedule");
@@ -61,18 +60,12 @@ export default function App() {
     setNav({ screen: "workout-detail", sessionId });
   };
 
-  const openExerciseLibrary = () => {
-    setNav({ screen: "exercise-library" });
-  };
-
-  const openWorkoutHistory = () => {
-    setNav({ screen: "workout-history" });
-  };
+  const openExerciseLibrary = () => setNav({ screen: "exercise-library" });
+  const openWorkoutHistory = () => setNav({ screen: "workout-history" });
 
   const goBack = () => {
     if (nav.screen === "exercise-history") {
-      const clientId = (nav as any).clientId;
-      setNav({ screen: "client-detail", clientId });
+      setNav({ screen: "client-detail", clientId: (nav as any).clientId });
     } else {
       setNav({ screen: "main" });
     }
@@ -85,23 +78,16 @@ export default function App() {
           <>
             {tab === "generate" && <Generate />}
             {tab === "clientele" && (
-              <Clientele
-                onSelectClient={selectClientAndGoToSchedule}
-                onOpenClient={openClientDetail}
-              />
+              <Clientele onSelectClient={selectClientAndGoToSchedule} onOpenClient={openClientDetail} />
             )}
             {tab === "workout" && (
-              <WorkoutTab
-                selectedClientId={selectedClientId}
-                onOpenWorkout={openWorkoutDetail}
-                onOpenHistory={openWorkoutHistory}
-              />
+              <WorkoutTab selectedClientId={selectedClientId} onOpenWorkout={openWorkoutDetail} onOpenHistory={openWorkoutHistory} />
             )}
             {tab === "schedule" && (
-              <Schedule
-                selectedClientId={selectedClientId}
-                onOpenWorkout={openWorkoutDetail}
-              />
+              <Schedule selectedClientId={selectedClientId} onOpenWorkout={openWorkoutDetail} />
+            )}
+            {tab === "progress" && (
+              <Progress selectedClientId={selectedClientId} />
             )}
             {tab === "profile" && (
               <Profile onOpenExerciseLibrary={openExerciseLibrary} />
@@ -109,44 +95,24 @@ export default function App() {
           </>
         )}
         {nav.screen === "client-detail" && (
-          <ClientDetail
-            clientId={(nav as any).clientId}
-            onBack={goBack}
-            onViewExerciseHistory={openExerciseHistory}
-          />
+          <ClientDetail clientId={(nav as any).clientId} onBack={goBack} onViewExerciseHistory={openExerciseHistory} />
         )}
         {nav.screen === "exercise-history" && (
-          <ExerciseHistory
-            clientId={(nav as any).clientId}
-            onBack={goBack}
-          />
+          <ExerciseHistory clientId={(nav as any).clientId} onBack={goBack} />
         )}
         {nav.screen === "workout-detail" && (
-          <WorkoutDetail
-            sessionId={(nav as any).sessionId}
-            onBack={goBack}
-            onOpenHistory={openWorkoutHistory}
-          />
+          <WorkoutDetail sessionId={(nav as any).sessionId} onBack={goBack} onOpenHistory={openWorkoutHistory} />
         )}
-        {nav.screen === "exercise-library" && (
-          <ExerciseLibrary onBack={goBack} />
-        )}
-        {nav.screen === "workout-history" && (
-          <WorkoutHistory onBack={goBack} />
-        )}
+        {nav.screen === "exercise-library" && <ExerciseLibrary onBack={goBack} />}
+        {nav.screen === "workout-history" && <WorkoutHistory onBack={goBack} />}
       </div>
 
       {nav.screen === "main" && (
         <nav className="tab-bar">
           {TABS.map(({ id, label, Icon }) => (
-            <button
-              key={id}
-              className={`tab-item${tab === id ? " active" : ""}`}
-              onClick={() => handleTabChange(id)}
-              type="button"
-            >
-              <Icon size={22} strokeWidth={tab === id ? 2.5 : 1.8} />
-              <span>{label}</span>
+            <button key={id} className={`tab-item${tab === id ? " active" : ""}`} onClick={() => handleTabChange(id)} type="button">
+              <Icon size={20} strokeWidth={tab === id ? 2.5 : 1.8} />
+              <span style={{ fontSize: 9 }}>{label}</span>
             </button>
           ))}
         </nav>

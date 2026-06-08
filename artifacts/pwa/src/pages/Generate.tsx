@@ -122,7 +122,12 @@ export default function Generate() {
   const totalCells = Math.ceil((firstDay + daysInMonth) / 7) * 7;
   const today = new Date().toISOString().split("T")[0];
 
-  const scheduledDates = new Set((sessions ?? []).map((s) => s.scheduledDate).filter(Boolean) as string[]);
+  const scheduledDates = new Set(
+    (sessions ?? [])
+      .filter((s) => selectedClientId !== undefined ? s.clientId === selectedClientId : !s.clientId)
+      .map((s) => s.scheduledDate)
+      .filter(Boolean) as string[]
+  );
 
   const handleDateToggle = (dateStr: string) => {
     setSelectedDates((prev) => {
