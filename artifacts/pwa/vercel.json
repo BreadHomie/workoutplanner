@@ -1,0 +1,19 @@
+{
+  "buildCommand": "cd ../.. && pnpm --filter @workspace/pwa run build",
+  "outputDirectory": "artifacts/pwa/dist/public",
+  "installCommand": "npm install -g pnpm && pnpm install",
+  "env": {
+    "BASE_PATH": "/",
+    "PORT": "3000"
+  },
+  "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }],
+  "headers": [
+    {
+      "source": "/service-worker.js",
+      "headers": [
+        { "key": "Cache-Control", "value": "no-cache, no-store, must-revalidate" },
+        { "key": "Content-Type", "value": "application/javascript" }
+      ]
+    }
+  ]
+}

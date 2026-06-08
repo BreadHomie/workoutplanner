@@ -1,0 +1,20 @@
+We need to overhaul the underlying architecture of this mobile web app. We are migrating it away from Replit's dynamic hosting environment to deploy it as a 100% free, static, client-side Progressive Web App (PWA) on Vercel. The app must be re-engineered to run entirely local-first and function seamlessly offline on mobile devices/tablets.
+
+Please refactor the project codebase according to these exact guidelines:
+
+1. REMOVE ALL BACKEND DEPENDENCIES:
+Eliminate any server-side routes, Node/Express configurations, or dynamic server-side rendering logic. The entire app must build down to strict static assets (index.html, compiled JS, and basic CSS) that execute purely inside the user's browser client.
+
+2. SET UP OFFLINE LOCAL STORAGE SYSTEM:
+Install and configure 'dexie' to act as a lightweight, clean interface wrapper for the browser's native IndexedDB storage. Initialize a local schema setup that will allow our future frontend features to save, read, and query structured records directly to the device's physical hardware memory without needing an internet connection. Include a utility startup script using 'navigator.storage.persist()' to request permanent storage status from the mobile OS so the database doesn't get cleared automatically during background cache sweeps.
+
+3. CONVERT TO AN INSTALLABLE PWA:
+Generate and correctly wire up the core offline configuration files:
+- A web 'manifest.json' file with standalone app configurations ("display": "standalone", "orientation": "portrait") so it hides the browser URL bar when installed.
+- A standard 'service-worker.js' script that intercepts fetch requests and aggressively caches the compiled HTML, JavaScript, and CSS bundles. This ensures the app shell loads instantly even on Airplane Mode.
+
+4. MOBILE/TABLET UI PREPARATION:
+Refactor the primary layout container to be mobile-first, responsive, and optimized for fast touch-screen inputs. Ensure any existing data inputs are prepared to look clean on a mobile/tablet screen with large hitboxes instead of tiny text inputs.
+
+5. VERCEL-READY STATIC BUILD STEP:
+Ensure the frontend build pipeline configuration (like a standard vite.config.js) outputs a clean, compiled, static directory (e.g., 'dist' or 'build') that can be linked to a GitHub repository and deployed to Vercel with zero configuration required.
