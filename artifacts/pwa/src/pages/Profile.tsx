@@ -9,7 +9,10 @@ const EQUIPMENT_LIST = [...EQUIPMENT_OPTIONS];
 const DIFF_LIST = [...DIFFICULTY_OPTIONS];
 
 function ExerciseLibrary() {
-  const exercises = useLiveQuery(() => db.exercises.orderBy("name").toArray(), []);
+  const exercises = useLiveQuery(
+    () => db.exercises.toArray().then((arr) => arr.sort((a, b) => a.name.localeCompare(b.name))),
+    []
+  );
   const [search, setSearch] = useState("");
   const [showAdd, setShowAdd] = useState(false);
   const [showInactive, setShowInactive] = useState(false);
