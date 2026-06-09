@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
-import { ArrowLeft, Search, ChevronDown, ChevronRight, Dumbbell } from "lucide-react";
+import { ArrowLeft, Search, ChevronDown, ChevronRight, Dumbbell, Star } from "lucide-react";
 import { db } from "../db/index";
 
 interface Props {
@@ -19,18 +19,34 @@ interface LogEntry {
   sets: SetEntry[];
   weightUsed?: number;
   rawReps: number;
+  rating?: number;
 }
 
 interface ExerciseRow {
   id: number;
   name: string;
-  mostRecentWeight?: number;
+  highestWeight?: number;
   mostRecentDate: string;
+  avgRating: number;
   entries: LogEntry[];
 }
 
 function formatDate(isoDate: string) {
   return new Date(isoDate).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+}
+
+function StarDisplay({ value }: { value: number }) {
+  if (!value) return null;
+  return (
+    <div style={{ display: "flex", gap: 1, alignItems: "center" }}>
+      {[1, 2, 3, 4, 5].map((s) => (
+        <Star key={s} size={11}
+          fill={value >= s ? "hsl(43 96% 56%)" : "none"}
+          color={value >= s ? "hsl(43 96% 56%)" : "hsl(0 0% 30%)"}
+          strokeWidth={1.5} />
+      ))}
+    </div>
+  );
 }
 
 export default function ExerciseHistory({ clientId, onBack }: Props) {
@@ -77,6 +93,7 @@ export default function ExerciseHistory({ clientId, onBack }: Props) {
         sets,
         weightUsed: log.weightUsed,
         rawReps: log.reps,
+        rating: log.rating,
       };
       const existing = byExercise.get(log.exerciseId) ?? [];
       existing.push(entry);
@@ -90,24 +107,38 @@ export default function ExerciseHistory({ clientId, onBack }: Props) {
       const exercise = exerciseMap.get(exId);
       if (!exercise) continue;
 
-      // Sort chronologically (earliest first)
       const sorted = [...entries].sort((a, b) => a.date.localeCompare(b.date));
-
-      // Most recent = last in sorted
       const mostRecent = sorted[sorted.length - 1];
-      const mostRecentWeight =
-        mostRecent.sets.find((s) => s.weight && s.weight > 0)?.weight ?? mostRecent.weightUsed;
+
+      // Highest weight across ALL sets and ALL sessions
+      let highestWeight: number | undefined;
+      for (const entry of entries) {
+        for (const set of entry.sets) {
+          if (set.weight && set.weight > 0 && (highestWeight === undefined || set.weight > highestWeight)) {
+            highestWeight = set.weight;
+          }
+        }
+        if (entry.weightUsed && (highestWeight === undefined || entry.weightUsed > highestWeight)) {
+          highestWeight = entry.weightUsed;
+        }
+      }
+
+      // Average star rating
+      const rated = entries.filter((e) => e.rating && e.rating > 0);
+      const avgRating = rated.length > 0
+        ? Math.round(rated.reduce((s, e) => s + (e.rating ?? 0), 0) / rated.length)
+        : 0;
 
       rows.push({
         id: exId,
         name: exercise.name,
-        mostRecentWeight,
+        highestWeight,
+        avgRating,
         mostRecentDate: mostRecent.date,
         entries: sorted,
       });
     }
 
-    // Sort by most recently used
     rows.sort((a, b) => b.mostRecentDate.localeCompare(a.mostRecentDate));
     return rows;
   }, [clientSessions, allLogs, allExercises]);
@@ -130,7 +161,6 @@ export default function ExerciseHistory({ clientId, onBack }: Props) {
 
   return (
     <div style={{ height: "100%", display: "flex", flexDirection: "column" }}>
-      {/* Header */}
       <div style={{ padding: "16px 16px 10px", borderBottom: "1px solid hsl(0 0% 12%)" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
           <button
@@ -148,7 +178,6 @@ export default function ExerciseHistory({ clientId, onBack }: Props) {
           </div>
         </div>
 
-        {/* Search */}
         <div style={{ position: "relative" }}>
           <Search size={16} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "hsl(0 0% 40%)" }} />
           <input
@@ -208,20 +237,28 @@ export default function ExerciseHistory({ clientId, onBack }: Props) {
                   textAlign: "left",
                 }}
               >
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 14, fontWeight: 600, color: "hsl(0 0% 92%)" }}>{row.name}</div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" as const }}>
+                    <span style={{ fontSize: 14, fontWeight: 600, color: "hsl(0 0% 92%)" }}>{row.name}</span>
+                    {row.avgRating > 0 && <StarDisplay value={row.avgRating} />}
+                  </div>
                   <div style={{ fontSize: 12, color: "hsl(0 0% 45%)", marginTop: 2 }}>
                     Last used {formatDate(row.mostRecentDate)}
                     {" · "}{row.entries.length} session{row.entries.length !== 1 ? "s" : ""}
                   </div>
                 </div>
-                {row.mostRecentWeight ? (
-                  <div style={{ fontSize: 14, fontWeight: 700, color: "hsl(83 97% 59%)", flexShrink: 0 }}>
-                    {row.mostRecentWeight} lbs
-                  </div>
-                ) : (
-                  <div style={{ fontSize: 12, color: "hsl(0 0% 40%)", flexShrink: 0 }}>BW</div>
-                )}
+                <div style={{ display: "flex", flexDirection: "column" as const, alignItems: "flex-end", gap: 2, flexShrink: 0 }}>
+                  {row.highestWeight !== undefined ? (
+                    <>
+                      <div style={{ fontSize: 14, fontWeight: 700, color: "hsl(83 97% 59%)" }}>
+                        {row.highestWeight} lbs
+                      </div>
+                      <div style={{ fontSize: 9, fontWeight: 600, color: "hsl(0 0% 38%)", textTransform: "uppercase" as const, letterSpacing: "0.04em" }}>best</div>
+                    </>
+                  ) : (
+                    <div style={{ fontSize: 12, color: "hsl(0 0% 40%)" }}>BW</div>
+                  )}
+                </div>
                 {isExpanded
                   ? <ChevronDown size={16} color="hsl(0 0% 45%)" style={{ flexShrink: 0 }} />
                   : <ChevronRight size={16} color="hsl(0 0% 45%)" style={{ flexShrink: 0 }} />}
@@ -243,8 +280,11 @@ export default function ExerciseHistory({ clientId, onBack }: Props) {
                         borderBottom: ei < row.entries.length - 1 ? "1px solid hsl(0 0% 12%)" : "none",
                       }}
                     >
-                      <div style={{ fontSize: 12, fontWeight: 700, color: "hsl(83 97% 59%)", marginBottom: 8, letterSpacing: "0.04em" }}>
-                        {formatDate(entry.date)}
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+                        <div style={{ fontSize: 12, fontWeight: 700, color: "hsl(83 97% 59%)", letterSpacing: "0.04em" }}>
+                          {formatDate(entry.date)}
+                        </div>
+                        {entry.rating && entry.rating > 0 && <StarDisplay value={entry.rating} />}
                       </div>
                       <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
                         {entry.sets.length > 0 ? (

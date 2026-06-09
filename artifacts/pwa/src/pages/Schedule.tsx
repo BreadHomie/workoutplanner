@@ -1,6 +1,6 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
-import { ChevronLeft, ChevronRight, Zap, Eye } from "lucide-react";
+import { ChevronLeft, ChevronRight, Zap, Eye, Save, Check } from "lucide-react";
 import { db } from "../db/index";
 import { generateWorkout, SPLIT_CYCLES } from "../lib/workoutGenerator";
 import type { WorkoutSession } from "../lib/types";
@@ -22,10 +22,40 @@ export default function Schedule({ selectedClientId, onOpenWorkout }: Props) {
   const [isScheduling, setIsScheduling] = useState(false);
   const [noteDraft, setNoteDraft] = useState<Record<string, string>>({});
 
+  // Client-level notes state
+  const [clientNoteDraft, setClientNoteDraft] = useState("");
+  const [clientNoteSaved, setClientNoteSaved] = useState(false);
+
   const profile = useLiveQuery(() => db.userProfile.toCollection().first());
   const sessions = useLiveQuery(() => db.workoutSessions.toArray(), []);
   const clients = useLiveQuery(() => db.clients.toArray(), []);
   const dayNotes = useLiveQuery(() => db.dayNotes.toArray(), []);
+
+  // Client note (persistent, not tied to a date)
+  const clientNote = useLiveQuery(
+    async () => {
+      if (selectedClientId === undefined) return undefined;
+      return db.clientNotes.where("clientId").equals(selectedClientId).first();
+    },
+    [selectedClientId]
+  );
+
+  // Sync draft when client note loads or selected client changes
+  useEffect(() => {
+    setClientNoteDraft(clientNote?.notes ?? "");
+  }, [clientNote?.notes, selectedClientId]);
+
+  const handleSaveClientNote = async () => {
+    if (selectedClientId === undefined) return;
+    const text = clientNoteDraft;
+    if (clientNote?.id) {
+      await db.clientNotes.update(clientNote.id, { notes: text, updatedAt: new Date().toISOString() });
+    } else {
+      await db.clientNotes.add({ clientId: selectedClientId, notes: text, updatedAt: new Date().toISOString() });
+    }
+    setClientNoteSaved(true);
+    setTimeout(() => setClientNoteSaved(false), 2000);
+  };
 
   const year = viewDate.getFullYear();
   const month = viewDate.getMonth();
@@ -46,7 +76,6 @@ export default function Schedule({ selectedClientId, onOpenWorkout }: Props) {
     }
   }
 
-  // Notes: per date + clientId
   const getNoteForDate = useCallback((date: string) => {
     if (!dayNotes) return null;
     return dayNotes.find((n) => n.date === date && (n.clientId ?? undefined) === selectedClientId) ?? null;
@@ -89,11 +118,9 @@ export default function Schedule({ selectedClientId, onOpenWorkout }: Props) {
 
   const todayStr = toDateStr(today);
 
-  // When a date is selected, load its draft from existing note
   const handleSelectDate = (dateStr: string) => {
     setSelectedDate((p) => {
       if (p === dateStr) return null;
-      // Initialize draft from stored note
       const existing = getNoteForDate(dateStr);
       if (existing) setNoteDraft((prev) => ({ ...prev, [dateStr]: existing.notes }));
       return dateStr;
@@ -156,8 +183,51 @@ export default function Schedule({ selectedClientId, onOpenWorkout }: Props) {
           })}
         </div>
 
-        {selectedDate && (
+        {/* Persistent client notes — always visible when a client is selected */}
+        {selectedClientId !== undefined && (
           <div style={{ marginTop: 20, padding: 16, borderRadius: 14, border: "1px solid hsl(0 0% 15%)", background: "hsl(0 0% 9%)" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+              <div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: "hsl(0 0% 80%)" }}>Client Notes</div>
+                <div style={{ fontSize: 11, color: "hsl(0 0% 45%)", marginTop: 1 }}>
+                  {selectedClient
+                    ? <><span style={{ color: "hsl(83 97% 59%)" }}>{selectedClient}</span> · saved notes</>
+                    : "Saved notes for this client"}
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={handleSaveClientNote}
+                style={{
+                  display: "flex", alignItems: "center", gap: 5,
+                  padding: "7px 14px", borderRadius: 9,
+                  background: clientNoteSaved ? "hsl(83 97% 59% / 0.15)" : "hsl(0 0% 14%)",
+                  border: `1px solid ${clientNoteSaved ? "hsl(83 97% 59% / 0.4)" : "hsl(0 0% 20%)"}`,
+                  color: clientNoteSaved ? "hsl(83 97% 59%)" : "hsl(0 0% 65%)",
+                  fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit",
+                  transition: "all 0.2s",
+                }}>
+                {clientNoteSaved ? <><Check size={13} /> Saved</> : <><Save size={13} /> Save</>}
+              </button>
+            </div>
+            <textarea
+              placeholder={`Notes for ${selectedClient ?? "this client"}… (training cues, injuries, goals, preferences)`}
+              value={clientNoteDraft}
+              onChange={(e) => setClientNoteDraft(e.target.value)}
+              style={{
+                width: "100%", minHeight: 100, borderRadius: 9,
+                border: "1px solid hsl(0 0% 18%)", background: "hsl(0 0% 12%)",
+                color: "hsl(0 0% 88%)", padding: "10px 12px",
+                fontSize: 13, fontFamily: "inherit",
+                resize: "vertical" as const, lineHeight: 1.6,
+              }}
+            />
+          </div>
+        )}
+
+        {/* Selected date detail panel */}
+        {selectedDate && (
+          <div style={{ marginTop: 14, padding: 16, borderRadius: 14, border: "1px solid hsl(0 0% 15%)", background: "hsl(0 0% 9%)" }}>
             <div style={{ fontSize: 15, fontWeight: 700, color: "hsl(0 0% 90%)", marginBottom: 12 }}>
               {new Date(selectedDate + "T12:00:00").toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}
             </div>
@@ -190,10 +260,10 @@ export default function Schedule({ selectedClientId, onOpenWorkout }: Props) {
               </button>
             )}
 
-            {/* Day notes */}
+            {/* Day-specific notes */}
             <div style={{ marginTop: 14, borderTop: "1px solid hsl(0 0% 13%)", paddingTop: 12 }}>
               <div style={{ fontSize: 11, fontWeight: 600, color: "hsl(0 0% 50%)", marginBottom: 6 }}>
-                NOTES{selectedClient ? ` — ${selectedClient}` : ""}
+                DAY NOTES{selectedClient ? ` — ${selectedClient}` : ""}
               </div>
               <textarea
                 placeholder="Add notes for this day…"

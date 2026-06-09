@@ -20,7 +20,7 @@ type NavScreen =
   | { screen: "exercise-history"; clientId: number }
   | { screen: "workout-detail"; sessionId: number }
   | { screen: "exercise-library" }
-  | { screen: "workout-history" };
+  | { screen: "workout-history"; clientId?: number };
 
 const TABS: { id: Tab; label: string; Icon: typeof Zap }[] = [
   { id: "generate", label: "Generate", Icon: Zap },
@@ -61,7 +61,7 @@ export default function App() {
   };
 
   const openExerciseLibrary = () => setNav({ screen: "exercise-library" });
-  const openWorkoutHistory = () => setNav({ screen: "workout-history" });
+  const openWorkoutHistory = () => setNav({ screen: "workout-history", clientId: selectedClientId });
 
   const goBack = () => {
     if (nav.screen === "exercise-history") {
@@ -104,7 +104,7 @@ export default function App() {
           <WorkoutDetail sessionId={(nav as any).sessionId} onBack={goBack} onOpenHistory={openWorkoutHistory} />
         )}
         {nav.screen === "exercise-library" && <ExerciseLibrary onBack={goBack} />}
-        {nav.screen === "workout-history" && <WorkoutHistory onBack={goBack} />}
+        {nav.screen === "workout-history" && <WorkoutHistory clientId={(nav as any).clientId} onBack={goBack} />}
       </div>
 
       {nav.screen === "main" && (

@@ -99,6 +99,13 @@ export interface DayNote {
   updatedAt: string;
 }
 
+export interface ClientNote {
+  id?: number;
+  clientId: number;
+  notes: string;
+  updatedAt: string;
+}
+
 export const EQUIPMENT_OPTIONS = ["Full Gym", "Bodyweight", "Dumbbells"] as const;
 export const DIFFICULTY_OPTIONS = ["Beginner", "Intermediate", "Advanced"] as const;
 export const MUSCLE_FIELDS = [
